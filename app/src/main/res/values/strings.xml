@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KeyAura</string>
+    <string name="keyboard_name">KeyAura Keyboard</string>
+    <string name="enable_keyboard">Enable Keyboard</string>
+    <string name="enable_keyboard_desc">Enable KeyAura to start typing</string>
+    <string name="choose_keyboard">Choose Keyboard</string>
+    <string name="choose_keyboard_desc">Select KeyAura as your default keyboard</string>
+    <string name="about_title">About KeyAura</string>
+    <string name="about_content">KeyAura is a professional Android custom keyboard featuring stunning radial color animations on every key press, Roman Urdu to Urdu transliteration, and a sleek dark UI designed for the ultimate typing experience.
+
+Built with passion for users who want both style and functionality in their daily typing.
+
+Features:
+• Multi-color radial animations
+• Roman Urdu to Urdu typing
+• Smart Enter key
+• Auto-return to letters
+• Customizable settings
+• Landscape support
+
+Version 1.0.0</string>
+    <string name="about">About</string>
+</resources>
