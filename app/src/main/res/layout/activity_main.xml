@@ -50,18 +50,15 @@
 
         <!-- Logo -->
         <TextView
+            android:id="@+id/logoText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="KeyAura"
             android:textSize="48sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif"
-            android:layout_marginBottom="8dp">
-            <gradient
-                android:startColor="#4488FF"
-                android:endColor="#FF64C8"
-                android:angle="45" />
-        </TextView>
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="8dp" />
 
         <!-- Keyboard icon -->
         <ImageView
@@ -122,6 +119,7 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/btnEnableLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/enable_keyboard"

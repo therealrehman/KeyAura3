@@ -12,6 +12,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.utils.AnimationEngine
@@ -85,8 +86,18 @@ class KeyboardView @JvmOverloads constructor(
         "khuda" to "خدا", "hafiz" to "حافظ", "adab" to "ادب", "salam" to "سلام"
     )
 
-    private var isRomanUrduEnabled = false
     private var currentRomanBuffer = StringBuilder()
+
+    // FIX: current editor action (Search/Send/Go/Done/Next/newline), pushed by the IME
+    // service so the Return key can both look and behave correctly per text field.
+    private var imeAction: Int = EditorInfo.IME_ACTION_UNSPECIFIED
+
+    fun setImeAction(action: Int) {
+        if (imeAction != action) {
+            imeAction = action
+            postInvalidateOnAnimation()
+        }
+    }
 
     fun setOnCustomKeyListener(listener: OnKeyListener) {
         this.keyListener = listener
@@ -138,7 +149,7 @@ class KeyboardView @JvmOverloads constructor(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
         listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
         listOf("Shift", "z", "x", "c", "v", "b", "n", "m", "Del"),
-        listOf("123", "Settings", "Urdu", "Space", ".", "Go")
+        listOf("123", "Settings", "Space", ".", "Go")
     )
 
     // Symbol layout 1
@@ -146,14 +157,14 @@ class KeyboardView @JvmOverloads constructor(
         listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
         listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
         listOf("*", "\"", "'", ":", ";", "!", "?"),
-        listOf("=\<", "%", "^", "[", "]", "{", "}", "Del"),
+        listOf("=\\<", "%", "^", "[", "]", "{", "}", "Del"),
         listOf("ABC", "Settings", ",", "Space", ".", "Go")
     )
 
     // Symbol layout 2 (extended)
     private val extendedSymbolLayout = listOf(
         listOf("~", "`", "|", "•", "√", "π", "÷", "×", "¶", "Δ"),
-        listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\"),
+        listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
         listOf("©", "®", "™", "✓", "[", "]", "<", ">"),
         listOf("123", "_", "-", "+", "(", ")", "/", "Del"),
         listOf("ABC", "Settings", ",", "Space", ".", "Go")
@@ -215,8 +226,7 @@ class KeyboardView @JvmOverloads constructor(
         keyCodes["123"] = -2
         keyCodes["ABC"] = -3
         keyCodes["Settings"] = -6
-        keyCodes["=\<"] = -7
-        keyCodes["Urdu"] = -8
+        keyCodes["=\\<"] = -7
     }
 
     // FIX: Landscape - use fixed height, never expand to fullscreen
@@ -293,8 +303,7 @@ class KeyboardView @JvmOverloads constructor(
         return when (label) {
             "Space" -> 3.5f
             "Shift", "Del", "123", "ABC", "Go" -> 1.4f
-            "=\<" -> 1.6f
-            "Urdu" -> 1.6f
+            "=\\<" -> 1.6f
             "Settings" -> 1.0f
             else -> 1.0f
         }
@@ -366,7 +375,7 @@ class KeyboardView @JvmOverloads constructor(
     private fun drawSettingsPanel(canvas: Canvas) {
         settingsPanelTargets.clear()
         val panelW = width * 0.7f
-        val panelH = dp(90f)
+        val panelH = dp(120f)
         val panelLeft = (width - panelW) / 2f
         val panelTop = (height - panelH) / 2f
 
@@ -379,7 +388,7 @@ class KeyboardView @JvmOverloads constructor(
         canvas.drawRoundRect(panelLeft, panelTop, panelLeft + panelW, panelTop + panelH, dp(10f), dp(10f), bgPaint)
         canvas.drawRoundRect(panelLeft, panelTop, panelLeft + panelW, panelTop + panelH, dp(10f), dp(10f), borderPaint)
 
-        val rowH = panelH / 3f
+        val rowH = panelH / 4f
         val padX = dp(14f)
 
         val row1Top = panelTop
@@ -395,10 +404,16 @@ class KeyboardView @JvmOverloads constructor(
         settingsPanelTargets["toggle_sound"] = Rect(panelLeft.toInt(), row2Top.toInt(), (panelLeft + panelW).toInt(), (row2Top + rowH).toInt())
 
         val row3Top = panelTop + rowH * 2
+        canvas.drawText("Urdu", panelLeft + padX, row3Top + rowH / 2f + dp(4f), labelPaint)
+        valuePaint.color = if (settings.urduEnabled) Color.parseColor("#4CD964") else Color.parseColor("#888888")
+        canvas.drawText(if (settings.urduEnabled) "ON" else "OFF", panelLeft + panelW - padX, row3Top + rowH / 2f + dp(4f), valuePaint)
+        settingsPanelTargets["toggle_urdu"] = Rect(panelLeft.toInt(), row3Top.toInt(), (panelLeft + panelW).toInt(), (row3Top + rowH).toInt())
+
+        val row4Top = panelTop + rowH * 3
         labelPaint.textAlign = Paint.Align.CENTER
         labelPaint.color = Color.parseColor("#FF6464")
-        canvas.drawText("Close", panelLeft + panelW / 2f, row3Top + rowH / 2f + dp(4f), labelPaint)
-        settingsPanelTargets["close_panel"] = Rect(panelLeft.toInt(), row3Top.toInt(), (panelLeft + panelW).toInt(), (row3Top + rowH).toInt())
+        canvas.drawText("Close", panelLeft + panelW / 2f, row4Top + rowH / 2f + dp(4f), labelPaint)
+        settingsPanelTargets["close_panel"] = Rect(panelLeft.toInt(), row4Top.toInt(), (panelLeft + panelW).toInt(), (row4Top + rowH).toInt())
     }
 
     private fun updateRipples(canvas: Canvas, dt: Long) {
@@ -459,10 +474,13 @@ class KeyboardView @JvmOverloads constructor(
         val r = rect.right.toFloat()
         val b = rect.bottom.toFloat()
 
-        val keyMargin = ((r - l) * 0.05f)
+        // FIX: separate H/V margins — a width-based margin applied to height too
+        // made wide keys (Space) render visibly shorter than narrow keys in the same row.
+        val keyMarginH = ((r - l) * 0.05f)
+        val keyMarginV = ((b - t) * 0.05f)
         val cornerRadius = dp(keyCornerRadiusDp)
-        canvas.drawRoundRect(l + keyMargin, t + keyMargin, r - keyMargin, b - keyMargin, cornerRadius, cornerRadius, keyPaint)
-        canvas.drawRoundRect(l + keyMargin, t + keyMargin, r - keyMargin, b - keyMargin, cornerRadius, cornerRadius, keyBorderPaint)
+        canvas.drawRoundRect(l + keyMarginH, t + keyMarginV, r - keyMarginH, b - keyMarginV, cornerRadius, cornerRadius, keyPaint)
+        canvas.drawRoundRect(l + keyMarginH, t + keyMarginV, r - keyMarginH, b - keyMarginV, cornerRadius, cornerRadius, keyBorderPaint)
 
         val dl = if (isShifted && label.length == 1 && label[0].isLetter()) label.uppercase() else label
 
@@ -470,9 +488,86 @@ class KeyboardView @JvmOverloads constructor(
             "Shift" -> drawShiftIcon(canvas, rect, textPaint.color)
             "Del" -> drawBackspaceIcon(canvas, rect, textPaint.color)
             "Settings" -> drawSettingsIcon(canvas, rect)
-            "Go" -> drawReturnIcon(canvas, rect, textPaint.color) // FIX: Return arrow icon
+            "Go" -> drawEnterIcon(canvas, rect, textPaint.color) // FIX: icon reflects Search/Send/Go/Done/Next
             else -> canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
         }
+    }
+
+    // FIX: Dispatches to the right glyph based on the field's requested editor action.
+    private fun drawEnterIcon(canvas: Canvas, rect: Rect, color: Int) {
+        when (imeAction) {
+            EditorInfo.IME_ACTION_SEARCH -> drawSearchIcon(canvas, rect, color)
+            EditorInfo.IME_ACTION_SEND -> drawSendIcon(canvas, rect, color)
+            EditorInfo.IME_ACTION_DONE -> drawDoneIcon(canvas, rect, color)
+            EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> drawGoArrowIcon(canvas, rect, color)
+            else -> drawReturnIcon(canvas, rect, color) // Unspecified/None -> literal newline
+        }
+    }
+
+    private fun drawSearchIcon(canvas: Canvas, rect: Rect, color: Int) {
+        iconPaint.color = color
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.strokeWidth = dp(2f)
+        iconPaint.strokeCap = Paint.Cap.ROUND
+        val cx = rect.exactCenterX() - dp(1.5f)
+        val cy = rect.exactCenterY() - dp(1.5f)
+        val s = minOf(rect.width(), rect.height()) * 0.16f
+        canvas.drawCircle(cx, cy, s, iconPaint)
+        val handleOffset = s * 0.75f
+        canvas.drawLine(
+            cx + handleOffset, cy + handleOffset,
+            cx + s * 1.6f, cy + s * 1.6f, iconPaint
+        )
+        iconPaint.style = Paint.Style.FILL
+    }
+
+    private fun drawSendIcon(canvas: Canvas, rect: Rect, color: Int) {
+        iconPaint.color = color
+        iconPaint.style = Paint.Style.FILL
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val s = minOf(rect.width(), rect.height()) * 0.20f
+        val path = android.graphics.Path()
+        path.moveTo(cx - s * 1.1f, cy - s * 0.9f)
+        path.lineTo(cx + s * 1.2f, cy)
+        path.lineTo(cx - s * 1.1f, cy + s * 0.9f)
+        path.lineTo(cx - s * 0.5f, cy)
+        path.close()
+        canvas.drawPath(path, iconPaint)
+    }
+
+    private fun drawDoneIcon(canvas: Canvas, rect: Rect, color: Int) {
+        iconPaint.color = color
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.strokeWidth = dp(2.2f)
+        iconPaint.strokeCap = Paint.Cap.ROUND
+        iconPaint.strokeJoin = Paint.Join.ROUND
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val s = minOf(rect.width(), rect.height()) * 0.18f
+        val path = android.graphics.Path()
+        path.moveTo(cx - s, cy)
+        path.lineTo(cx - s * 0.2f, cy + s * 0.8f)
+        path.lineTo(cx + s * 1.1f, cy - s * 0.8f)
+        canvas.drawPath(path, iconPaint)
+        iconPaint.style = Paint.Style.FILL
+    }
+
+    private fun drawGoArrowIcon(canvas: Canvas, rect: Rect, color: Int) {
+        iconPaint.color = color
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.strokeWidth = dp(2f)
+        iconPaint.strokeCap = Paint.Cap.ROUND
+        iconPaint.strokeJoin = Paint.Join.ROUND
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val s = minOf(rect.width(), rect.height()) * 0.18f
+        val path = android.graphics.Path()
+        path.moveTo(cx - s, cy - s)
+        path.lineTo(cx + s, cy)
+        path.lineTo(cx - s, cy + s)
+        canvas.drawPath(path, iconPaint)
+        iconPaint.style = Paint.Style.FILL
     }
 
     // FIX: Return arrow icon instead of "Go" text
@@ -625,6 +720,10 @@ class KeyboardView @JvmOverloads constructor(
                 when (key) {
                     "toggle_haptic" -> settings.hapticEnabled = !settings.hapticEnabled
                     "toggle_sound" -> settings.soundEnabled = !settings.soundEnabled
+                    "toggle_urdu" -> {
+                        finalizeRomanBuffer()
+                        settings.urduEnabled = !settings.urduEnabled
+                    }
                     "close_panel" -> showSettingsPanel = false
                 }
                 postInvalidateOnAnimation()
@@ -694,6 +793,24 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
+    // FIX: Finalizes the pending Roman-Urdu buffer at a word boundary (Space, Go,
+    // or a layout switch). If the whole typed word matches a known dictionary
+    // entry, the letter-by-letter text already on screen is replaced with the
+    // correct combined spelling (e.g. "shukriya" -> "شکریہ").
+    private fun finalizeRomanBuffer() {
+        if (settings.urduEnabled && currentRomanBuffer.length > 1) {
+            val typed = currentRomanBuffer.toString()
+            val wholeWordMatch = romanUrduMap[typed.lowercase()]
+            if (wholeWordMatch != null) {
+                for (i in 0 until typed.length) {
+                    keyListener?.onKey(-5, "Del")
+                }
+                keyListener?.onKey(wholeWordMatch.hashCode(), wholeWordMatch)
+            }
+        }
+        currentRomanBuffer.clear()
+    }
+
     private fun commitKey(label: String) {
         announceKeyForAccessibility(label)
         when (label) {
@@ -706,35 +823,38 @@ class KeyboardView @JvmOverloads constructor(
                 }
                 postInvalidateOnAnimation()
             }
-            "Del" -> keyListener?.onKey(-5, "Del")
-            "Go" -> keyListener?.onKey(-4, "Go")
-            "Space" -> {
-                if (isRomanUrduEnabled && currentRomanBuffer.isNotEmpty()) {
-                    // Commit any pending Roman Urdu conversion
-                    val text = currentRomanBuffer.toString()
-                    val converted = romanUrduMap[text.lowercase()] ?: text
-                    keyListener?.onKey(converted.hashCode(), converted)
-                    currentRomanBuffer.clear()
+            "Del" -> {
+                // Keep the buffer in sync with what's actually on screen, so a later
+                // word-boundary correction never deletes more than what was typed.
+                if (settings.urduEnabled && currentRomanBuffer.isNotEmpty()) {
+                    currentRomanBuffer.deleteCharAt(currentRomanBuffer.length - 1)
                 }
+                keyListener?.onKey(-5, "Del")
+            }
+            "Go" -> {
+                finalizeRomanBuffer()
+                keyListener?.onKey(-4, "Go")
+            }
+            "Space" -> {
+                finalizeRomanBuffer()
                 keyListener?.onKey(32, "Space")
             }
             "123" -> {
+                finalizeRomanBuffer()
                 currentLayout = numberLayout
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
             "ABC" -> {
+                finalizeRomanBuffer()
                 currentLayout = letterLayout
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
-            "=\<" -> {
+            "=\\<" -> {
+                finalizeRomanBuffer()
                 currentLayout = extendedSymbolLayout
                 createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "Urdu" -> {
-                isRomanUrduEnabled = !isRomanUrduEnabled
                 postInvalidateOnAnimation()
             }
             "Settings" -> {
@@ -744,30 +864,21 @@ class KeyboardView @JvmOverloads constructor(
             else -> {
                 var fl = if ((isShifted || isCapsLocked) && label.length == 1 && label[0].isLetter()) label.uppercase() else label
 
-                // Roman Urdu transliteration
-                if (isRomanUrduEnabled && fl.length == 1 && fl[0].isLetter()) {
-                    currentRomanBuffer.append(fl.lowercase())
-                    val bufferStr = currentRomanBuffer.toString()
-
-                    // Check if buffer matches any Roman Urdu word
-                    val converted = romanUrduMap[bufferStr]
-                    if (converted != null) {
-                        // Delete the Roman characters and insert Urdu
-                        for (i in 0 until bufferStr.length) {
-                            keyListener?.onKey(-5, "Del")
-                        }
-                        keyListener?.onKey(converted.hashCode(), converted)
-                        currentRomanBuffer.clear()
-                    } else {
-                        keyListener?.onKey(fl.hashCode(), fl)
-                    }
+                // FIX: direct per-letter substitution that only ever appends — never
+                // deletes — so each new key press joins onto the previous one instead
+                // of erasing it. finalizeRomanBuffer() upgrades known whole words later.
+                if (settings.urduEnabled && fl.length == 1 && fl[0].isLetter()) {
+                    val lower = fl.lowercase()
+                    currentRomanBuffer.append(lower)
+                    val urduChar = romanUrduMap[lower] ?: fl
+                    keyListener?.onKey(urduChar.hashCode(), urduChar)
                 } else {
                     keyListener?.onKey(fl.hashCode(), fl)
                 }
 
                 // FIX: Auto return to alphabetic layout after typing in numbers/symbols
                 // But NOT when pressing =\< key (stay in symbols)
-                if (currentLayout == numberLayout && label.length == 1 && label != "=\<") {
+                if (currentLayout == numberLayout && label.length == 1 && label != "=\\<") {
                     currentLayout = letterLayout
                     createKeyMap(width, height)
                     postInvalidateOnAnimation()
@@ -785,7 +896,15 @@ class KeyboardView @JvmOverloads constructor(
         if (!isAccessibilityLiveRegionRelevant()) return
         val spoken = when (label) {
             "Del" -> "Backspace"
-            "Go" -> "Enter"
+            "Go" -> when (imeAction) {
+                EditorInfo.IME_ACTION_SEARCH -> "Search"
+                EditorInfo.IME_ACTION_SEND -> "Send"
+                EditorInfo.IME_ACTION_DONE -> "Done"
+                EditorInfo.IME_ACTION_GO -> "Go"
+                EditorInfo.IME_ACTION_NEXT -> "Next"
+                EditorInfo.IME_ACTION_PREVIOUS -> "Previous"
+                else -> "Enter"
+            }
             "Space" -> "Space"
             "Shift" -> if (isShifted) "Shift off" else "Shift on"
             "123" -> "Numbers"

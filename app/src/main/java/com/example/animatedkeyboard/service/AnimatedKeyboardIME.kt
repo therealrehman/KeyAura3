@@ -39,6 +39,16 @@ class AnimatedKeyboardIME : InputMethodService() {
         currentInputEditorInfo = attribute
     }
 
+    // FIX: Runs after the input view actually exists, so this is the reliable place
+    // to tell KeyboardView which action the Return key should show/perform this time.
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        currentInputEditorInfo = info
+        if (::keyboardView.isInitialized) {
+            keyboardView.setImeAction(resolveEditorAction(info))
+        }
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         if (::keyboardView.isInitialized) {
@@ -54,20 +64,30 @@ class AnimatedKeyboardIME : InputMethodService() {
         }
     }
 
-    // FIX: Smart Enter - checks EditorInfo action type
+    // FIX: The old code checked EditorInfo.actionId first via ?:, but actionId is a
+    // plain (non-null) Int that defaults to 0 for every normal app — it's only set
+    // when an app defines a custom actionLabel. Since 0 isn't null, the Elvis operator
+    // never fell through to check imeOptions, so real Search/Send/Go/Done requests
+    // (which live in imeOptions, not actionId) were always ignored.
+    private fun resolveEditorAction(info: EditorInfo?): Int {
+        val imeOptions = info?.imeOptions ?: EditorInfo.IME_ACTION_UNSPECIFIED
+        val noEnterAction = (imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
+        if (noEnterAction) return EditorInfo.IME_ACTION_UNSPECIFIED
+        return imeOptions and EditorInfo.IME_MASK_ACTION
+    }
+
+    // FIX: Smart Enter - performs Search/Send/Go/Done/Next/Previous when the field
+    // asks for one (e.g. Google search box, chat send box); otherwise inserts a real
+    // newline, same as a normal text field or notes app.
     private fun handleSmartEnter() {
         val ic = currentInputConnection ?: return
-        val action = currentInputEditorInfo?.actionId 
-            ?: currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
-            ?: EditorInfo.IME_ACTION_UNSPECIFIED
-
-        when (action) {
-            EditorInfo.IME_ACTION_SEND -> ic.performEditorAction(EditorInfo.IME_ACTION_SEND)
-            EditorInfo.IME_ACTION_SEARCH -> ic.performEditorAction(EditorInfo.IME_ACTION_SEARCH)
-            EditorInfo.IME_ACTION_GO -> ic.performEditorAction(EditorInfo.IME_ACTION_GO)
-            EditorInfo.IME_ACTION_DONE -> ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
-            EditorInfo.IME_ACTION_NEXT -> ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-            else -> ic.commitText("\n", 1) // Actual newline for normal text fields
+        val action = resolveEditorAction(currentInputEditorInfo)
+        val hasRealAction = action != EditorInfo.IME_ACTION_NONE &&
+            action != EditorInfo.IME_ACTION_UNSPECIFIED
+        if (hasRealAction) {
+            ic.performEditorAction(action)
+        } else {
+            ic.commitText("\n", 1)
         }
     }
 }

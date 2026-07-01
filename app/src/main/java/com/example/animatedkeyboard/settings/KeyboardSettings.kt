@@ -25,6 +25,10 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getBoolean("sound", true)
         set(value) = prefs.edit().putBoolean("sound", value).apply()
 
+    var urduEnabled: Boolean
+        get() = prefs.getBoolean("urdu_enabled", false)
+        set(value) = prefs.edit().putBoolean("urdu_enabled", value).apply()
+
     var animationEnabled: Boolean
         get() = prefs.getBoolean("animation", true)
         set(value) = prefs.edit().putBoolean("animation", value).apply()
