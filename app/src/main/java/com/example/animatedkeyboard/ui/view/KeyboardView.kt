@@ -147,9 +147,9 @@ class KeyboardView @JvmOverloads constructor(
     private val letterLayout = listOf(
         listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
-        listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
+        listOf("a", "s", "d", "f", "g", "h", "j", "k", "l", "Urdu"),
         listOf("Shift", "z", "x", "c", "v", "b", "n", "m", "Del"),
-        listOf("123", "Settings", "Space", ".", "Go")
+        listOf("123", "Emoji", "Space", ".", "Go")
     )
 
     // Symbol layout 1
@@ -158,7 +158,7 @@ class KeyboardView @JvmOverloads constructor(
         listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
         listOf("*", "\"", "'", ":", ";", "!", "?"),
         listOf("=\\<", "%", "^", "[", "]", "{", "}", "Del"),
-        listOf("ABC", "Settings", ",", "Space", ".", "Go")
+        listOf("ABC", "Emoji", ",", "Space", ".", "Go")
     )
 
     // Symbol layout 2 (extended)
@@ -167,16 +167,14 @@ class KeyboardView @JvmOverloads constructor(
         listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
         listOf("©", "®", "™", "✓", "[", "]", "<", ">"),
         listOf("123", "_", "-", "+", "(", ")", "/", "Del"),
-        listOf("ABC", "Settings", ",", "Space", ".", "Go")
+        listOf("ABC", "Emoji", ",", "Space", ".", "Go")
     )
 
     private var currentLayout = letterLayout
     private var isShifted = false
     private var isCapsLocked = false
-    private var showSettingsPanel = false
     private val keyMap = mutableMapOf<String, Rect>()
     private val keyCodes = mutableMapOf<String, Int>()
-    private val settingsPanelTargets = mutableMapOf<String, Rect>()
     private var lastKeyTime = 0L
     private val debounceInterval = 100L
     private var touchStartX = 0f
@@ -225,8 +223,9 @@ class KeyboardView @JvmOverloads constructor(
         keyCodes["Space"] = 32
         keyCodes["123"] = -2
         keyCodes["ABC"] = -3
-        keyCodes["Settings"] = -6
+        keyCodes["Emoji"] = -9
         keyCodes["=\\<"] = -7
+        keyCodes["Urdu"] = -8
     }
 
     // FIX: Landscape - use fixed height, never expand to fullscreen
@@ -304,7 +303,8 @@ class KeyboardView @JvmOverloads constructor(
             "Space" -> 3.5f
             "Shift", "Del", "123", "ABC", "Go" -> 1.4f
             "=\\<" -> 1.6f
-            "Settings" -> 1.0f
+            "Emoji" -> 1.0f
+            "Urdu" -> 1.0f // FIX: same box size as regular letter keys, per spec
             else -> 1.0f
         }
     }
@@ -327,9 +327,6 @@ class KeyboardView @JvmOverloads constructor(
                 drawKey(canvas, label, rect)
             }
             currentPopup?.draw(canvas)
-            if (showSettingsPanel) {
-                drawSettingsPanel(canvas)
-            }
             postInvalidateOnAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Rendering error: ${e.message}")
@@ -370,50 +367,6 @@ class KeyboardView @JvmOverloads constructor(
             cx, cy, width * 0.75f, colors, pos, android.graphics.Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glowPaint)
-    }
-
-    private fun drawSettingsPanel(canvas: Canvas) {
-        settingsPanelTargets.clear()
-        val panelW = width * 0.7f
-        val panelH = dp(120f)
-        val panelLeft = (width - panelW) / 2f
-        val panelTop = (height - panelH) / 2f
-
-        val bgPaint = Paint().apply { color = Color.parseColor("#1A1A1A"); isAntiAlias = true }
-        val borderPaint = Paint().apply { color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(1.2f); isAntiAlias = true }
-        val labelPaint = Paint().apply { color = Color.WHITE; textSize = dp(13f); isAntiAlias = true; textAlign = Paint.Align.LEFT; isFakeBoldText = true }
-        val valuePaint = Paint().apply { isAntiAlias = true; textSize = dp(13f); textAlign = Paint.Align.RIGHT; isFakeBoldText = true }
-
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), Paint().apply { color = Color.argb(150, 0, 0, 0) })
-        canvas.drawRoundRect(panelLeft, panelTop, panelLeft + panelW, panelTop + panelH, dp(10f), dp(10f), bgPaint)
-        canvas.drawRoundRect(panelLeft, panelTop, panelLeft + panelW, panelTop + panelH, dp(10f), dp(10f), borderPaint)
-
-        val rowH = panelH / 4f
-        val padX = dp(14f)
-
-        val row1Top = panelTop
-        canvas.drawText("Vibration", panelLeft + padX, row1Top + rowH / 2f + dp(4f), labelPaint)
-        valuePaint.color = if (settings.hapticEnabled) Color.parseColor("#4CD964") else Color.parseColor("#888888")
-        canvas.drawText(if (settings.hapticEnabled) "ON" else "OFF", panelLeft + panelW - padX, row1Top + rowH / 2f + dp(4f), valuePaint)
-        settingsPanelTargets["toggle_haptic"] = Rect(panelLeft.toInt(), row1Top.toInt(), (panelLeft + panelW).toInt(), (row1Top + rowH).toInt())
-
-        val row2Top = panelTop + rowH
-        canvas.drawText("Sound", panelLeft + padX, row2Top + rowH / 2f + dp(4f), labelPaint)
-        valuePaint.color = if (settings.soundEnabled) Color.parseColor("#4CD964") else Color.parseColor("#888888")
-        canvas.drawText(if (settings.soundEnabled) "ON" else "OFF", panelLeft + panelW - padX, row2Top + rowH / 2f + dp(4f), valuePaint)
-        settingsPanelTargets["toggle_sound"] = Rect(panelLeft.toInt(), row2Top.toInt(), (panelLeft + panelW).toInt(), (row2Top + rowH).toInt())
-
-        val row3Top = panelTop + rowH * 2
-        canvas.drawText("Urdu", panelLeft + padX, row3Top + rowH / 2f + dp(4f), labelPaint)
-        valuePaint.color = if (settings.urduEnabled) Color.parseColor("#4CD964") else Color.parseColor("#888888")
-        canvas.drawText(if (settings.urduEnabled) "ON" else "OFF", panelLeft + panelW - padX, row3Top + rowH / 2f + dp(4f), valuePaint)
-        settingsPanelTargets["toggle_urdu"] = Rect(panelLeft.toInt(), row3Top.toInt(), (panelLeft + panelW).toInt(), (row3Top + rowH).toInt())
-
-        val row4Top = panelTop + rowH * 3
-        labelPaint.textAlign = Paint.Align.CENTER
-        labelPaint.color = Color.parseColor("#FF6464")
-        canvas.drawText("Close", panelLeft + panelW / 2f, row4Top + rowH / 2f + dp(4f), labelPaint)
-        settingsPanelTargets["close_panel"] = Rect(panelLeft.toInt(), row4Top.toInt(), (panelLeft + panelW).toInt(), (row4Top + rowH).toInt())
     }
 
     private fun updateRipples(canvas: Canvas, dt: Long) {
@@ -487,8 +440,9 @@ class KeyboardView @JvmOverloads constructor(
         when (label) {
             "Shift" -> drawShiftIcon(canvas, rect, textPaint.color)
             "Del" -> drawBackspaceIcon(canvas, rect, textPaint.color)
-            "Settings" -> drawSettingsIcon(canvas, rect)
+            "Emoji" -> drawEmojiGlyph(canvas, rect)
             "Go" -> drawEnterIcon(canvas, rect, textPaint.color) // FIX: icon reflects Search/Send/Go/Done/Next
+            "Urdu" -> canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
             else -> canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
         }
     }
@@ -597,24 +551,19 @@ class KeyboardView @JvmOverloads constructor(
 
     private val iconPaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
 
-    private fun drawSettingsIcon(canvas: Canvas, rect: Rect) {
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY()
-        val outerR = minOf(rect.width(), rect.height()) * 0.22f
-        val innerR = outerR * 0.45f
-        iconPaint.color = Color.WHITE
-        iconPaint.style = Paint.Style.FILL
-        for (i in 0 until 8) {
-            canvas.save()
-            canvas.rotate((i * 45).toFloat(), cx, cy)
-            canvas.drawRect(cx - dp(1.2f), cy - outerR - dp(2f), cx + dp(1.2f), cy - outerR + dp(2.5f), iconPaint)
-            canvas.restore()
+    // FIX: Replaces the gear/settings icon — this key now opens the emoji panel.
+    private fun drawEmojiGlyph(canvas: Canvas, rect: Rect) {
+        val glyphPaint = Paint().apply {
+            textSize = dp(19f)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
         }
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(1.6f)
-        canvas.drawCircle(cx, cy, outerR, iconPaint)
-        iconPaint.style = Paint.Style.FILL
-        canvas.drawCircle(cx, cy, innerR, iconPaint)
+        canvas.drawText(
+            "\uD83D\uDE00", // 😀
+            rect.exactCenterX(),
+            rect.exactCenterY() + glyphPaint.textSize / 3f,
+            glyphPaint
+        )
     }
 
     private fun drawShiftIcon(canvas: Canvas, rect: Rect, color: Int) {
@@ -657,12 +606,6 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (showSettingsPanel) {
-            if (event.action == MotionEvent.ACTION_UP) {
-                handleSettingsPanelTap(event.x, event.y)
-            }
-            return true
-        }
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 touchStartX = event.x
@@ -712,26 +655,6 @@ class KeyboardView @JvmOverloads constructor(
             }
         }
         return super.onTouchEvent(event)
-    }
-
-    private fun handleSettingsPanelTap(x: Float, y: Float) {
-        for ((key, rect) in settingsPanelTargets) {
-            if (rect.contains(x.toInt(), y.toInt())) {
-                when (key) {
-                    "toggle_haptic" -> settings.hapticEnabled = !settings.hapticEnabled
-                    "toggle_sound" -> settings.soundEnabled = !settings.soundEnabled
-                    "toggle_urdu" -> {
-                        finalizeRomanBuffer()
-                        settings.urduEnabled = !settings.urduEnabled
-                    }
-                    "close_panel" -> showSettingsPanel = false
-                }
-                postInvalidateOnAnimation()
-                return
-            }
-        }
-        showSettingsPanel = false
-        postInvalidateOnAnimation()
     }
 
     private fun handleTouchDown(x: Float, y: Float) {
@@ -857,8 +780,13 @@ class KeyboardView @JvmOverloads constructor(
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
-            "Settings" -> {
-                showSettingsPanel = !showSettingsPanel
+            "Emoji" -> {
+                finalizeRomanBuffer()
+                keyListener?.onKey(-9, "Emoji")
+            }
+            "Urdu" -> {
+                finalizeRomanBuffer()
+                settings.urduEnabled = !settings.urduEnabled
                 postInvalidateOnAnimation()
             }
             else -> {
@@ -909,6 +837,8 @@ class KeyboardView @JvmOverloads constructor(
             "Shift" -> if (isShifted) "Shift off" else "Shift on"
             "123" -> "Numbers"
             "ABC" -> "Letters"
+            "Emoji" -> "Emoji"
+            "Urdu" -> if (settings.urduEnabled) "Urdu typing off" else "Urdu typing on"
             else -> label
         }
         try {

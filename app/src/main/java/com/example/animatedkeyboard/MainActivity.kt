@@ -7,11 +7,15 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.animatedkeyboard.settings.KeyboardSettings
 
 class MainActivity : AppCompatActivity() {
+
+    private val settings by lazy { KeyboardSettings.getInstance(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,11 +49,26 @@ class MainActivity : AppCompatActivity() {
             // Show about dialog or navigate to about
             startActivity(Intent(this, AboutActivity::class.java))
         }
+
+        // FIX: Sound + Vibration toggles moved here from the old in-keyboard
+        // Settings panel — that key on the keyboard now opens the emoji panel.
+        val btnToggleSound = findViewById<LinearLayout>(R.id.btnToggleSound)
+        val btnToggleVibration = findViewById<LinearLayout>(R.id.btnToggleVibration)
+
+        btnToggleSound.setOnClickListener {
+            settings.soundEnabled = !settings.soundEnabled
+            updateToggleStates()
+        }
+        btnToggleVibration.setOnClickListener {
+            settings.hapticEnabled = !settings.hapticEnabled
+            updateToggleStates()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         updateButtonStates()
+        updateToggleStates()
     }
 
     // FIX: replaces the invalid <gradient> tag that used to be nested inside the
@@ -87,5 +106,21 @@ class MainActivity : AppCompatActivity() {
             btnEnable.isEnabled = true
             btnEnable.alpha = 1.0f
         }
+    }
+
+    // FIX: Reflects current Sound/Vibration state via dimmed icon + label text,
+    // since these are simple icon buttons rather than switches with a built-in
+    // on/off visual.
+    private fun updateToggleStates() {
+        val iconSound = findViewById<ImageView>(R.id.iconSound)
+        val labelSound = findViewById<TextView>(R.id.labelSound)
+        val iconVibration = findViewById<ImageView>(R.id.iconVibration)
+        val labelVibration = findViewById<TextView>(R.id.labelVibration)
+
+        iconSound.alpha = if (settings.soundEnabled) 1.0f else 0.35f
+        labelSound.text = if (settings.soundEnabled) "Sound" else "Sound off"
+
+        iconVibration.alpha = if (settings.hapticEnabled) 1.0f else 0.35f
+        labelVibration.text = if (settings.hapticEnabled) "Vibration" else "Vibration off"
     }
 }

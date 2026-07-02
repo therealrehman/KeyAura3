@@ -200,6 +200,75 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- FIX: Sound + Vibration quick toggles, moved here from the old
+             in-keyboard Settings panel (which no longer exists — that key
+             now opens the emoji panel instead). -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:id="@+id/btnToggleSound"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="10dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_toggle"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconSound"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@android:drawable/ic_lock_silent_mode_off"
+                    android:tint="#4488FF" />
+
+                <TextView
+                    android:id="@+id/labelSound"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Sound"
+                    android:textSize="11sp"
+                    android:textColor="#8888AA" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnToggleVibration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="10dp"
+                android:background="@drawable/bg_settings_toggle"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconVibration"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@android:drawable/ic_lock_idle_alarm"
+                    android:tint="#FF64C8" />
+
+                <TextView
+                    android:id="@+id/labelVibration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Vibration"
+                    android:textSize="11sp"
+                    android:textColor="#8888AA" />
+            </LinearLayout>
+
+        </LinearLayout>
+
         <!-- About link -->
         <TextView
             android:id="@+id/btnAbout"

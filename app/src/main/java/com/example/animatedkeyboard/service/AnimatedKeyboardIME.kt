@@ -2,18 +2,25 @@ package com.example.animatedkeyboard.service
 
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.FrameLayout
+import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
 class AnimatedKeyboardIME : InputMethodService() {
 
+    private lateinit var rootContainer: FrameLayout
     private lateinit var keyboardView: KeyboardView
+    private lateinit var emojiPanelView: EmojiPanelView
     private var currentInputEditorInfo: EditorInfo? = null
 
     // FIX: Force keyboard to stay at bottom, never fullscreen
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onCreateInputView(): View {
+        rootContainer = FrameLayout(this)
+
         keyboardView = KeyboardView(this)
         keyboardView.setBackgroundColor(0x00000000)
         keyboardView.setOnCustomKeyListener(object : KeyboardView.OnKeyListener {
@@ -23,6 +30,7 @@ class AnimatedKeyboardIME : InputMethodService() {
                     -1 -> {} // Shift handled in view
                     -5 -> ic.deleteSurroundingText(1, 0)
                     -4 -> handleSmartEnter()
+                    -9 -> showEmojiPanel() // FIX: emoji key (replaces old Settings key)
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)
@@ -30,7 +38,42 @@ class AnimatedKeyboardIME : InputMethodService() {
                 }
             }
         })
-        return keyboardView
+
+        emojiPanelView = EmojiPanelView(this)
+        emojiPanelView.setOnEmojiPanelListener(object : EmojiPanelView.OnEmojiPanelListener {
+            override fun onEmojiSelected(emoji: String) {
+                currentInputConnection?.commitText(emoji, 1)
+            }
+            override fun onBackToKeyboard() {
+                showKeyboard()
+            }
+        })
+        emojiPanelView.visibility = View.GONE
+
+        rootContainer.addView(
+            keyboardView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        rootContainer.addView(
+            emojiPanelView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        return rootContainer
+    }
+
+    // FIX: Swaps the visible child within the same input view instead of
+    // recreating onCreateInputView — instant, no flicker, and each view keeps
+    // its own state (keyboard layout/shift state, emoji scroll/search text).
+    private fun showEmojiPanel() {
+        keyboardView.visibility = View.GONE
+        emojiPanelView.visibility = View.VISIBLE
+        emojiPanelView.onPanelShown()
+    }
+
+    private fun showKeyboard() {
+        emojiPanelView.clearSearchFocus()
+        emojiPanelView.visibility = View.GONE
+        keyboardView.visibility = View.VISIBLE
     }
 
     // FIX: Store EditorInfo for Smart Enter functionality
@@ -41,11 +84,16 @@ class AnimatedKeyboardIME : InputMethodService() {
 
     // FIX: Runs after the input view actually exists, so this is the reliable place
     // to tell KeyboardView which action the Return key should show/perform this time.
+    // Also resets to the letter keyboard on every fresh field focus, matching how
+    // system keyboards never reopen mid-conversation on the emoji tray.
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
         if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
+        }
+        if (::emojiPanelView.isInitialized && ::keyboardView.isInitialized) {
+            showKeyboard()
         }
     }
 
