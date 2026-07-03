@@ -48,7 +48,15 @@
         android:gravity="center"
         android:padding="32dp">
 
-        <!-- Logo -->
+        <!-- App logo image -->
+        <ImageView
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:src="@drawable/ic_app_logo"
+            android:layout_marginBottom="12dp"
+            android:contentDescription="@null" />
+
+        <!-- Logo wordmark -->
         <TextView
             android:id="@+id/logoText"
             android:layout_width="wrap_content"
@@ -58,22 +66,35 @@
             android:textStyle="bold"
             android:fontFamily="sans-serif"
             android:textColor="#FFFFFF"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="12dp" />
 
-        <!-- Keyboard icon -->
-        <ImageView
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_edit"
-            android:layout_marginBottom="8dp"
-            android:tint="#8888FF" />
-
-        <!-- Divider line -->
-        <View
+        <!-- Tagline row: line — keyboard icon — line -->
+        <LinearLayout
             android:layout_width="200dp"
-            android:layout_height="1dp"
-            android:background="@drawable/gradient_line"
-            android:layout_marginBottom="8dp" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@drawable/gradient_line" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginHorizontal="10dp"
+                android:src="@drawable/ic_keyboard_glyph"
+                android:contentDescription="@null" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@drawable/gradient_line" />
+        </LinearLayout>
 
         <!-- Subtitle -->
         <TextView
@@ -105,12 +126,19 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@android:drawable/ic_menu_edit"
-                    android:tint="#4488FF"
-                    android:layout_marginEnd="16dp" />
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_icon_circle_blue"
+                    android:layout_marginEnd="16dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_keyboard_glyph"
+                        android:contentDescription="@null" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -163,12 +191,20 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@android:drawable/ic_menu_agenda"
-                    android:tint="#FF64C8"
-                    android:layout_marginEnd="16dp" />
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_icon_circle_pink"
+                    android:layout_marginEnd="16dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@android:drawable/ic_menu_agenda"
+                        android:tint="#FF64C8"
+                        android:contentDescription="@null" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"

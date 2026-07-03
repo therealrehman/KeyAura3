@@ -5,6 +5,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
@@ -21,11 +24,26 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onCreateInputView(): View {
         rootContainer = FrameLayout(this)
 
-        // FIX: without this, the system navigation bar area below the keyboard
-        // stays transparent and shows the wallpaper through it instead of a
-        // solid color — visible as a mismatched gap under the keyboard.
+        // FIX: Edge-to-edge so our own view can draw underneath the system
+        // navigation bar instead of stopping at its top edge. Without this,
+        // the OS reserves that strip for itself and nothing we draw can reach
+        // it — matching the color (done below) fills the gap, but only this
+        // lets the keyboard's own background/glow actually extend into it.
         window?.window?.let { w ->
-            w.navigationBarColor = android.graphics.Color.BLACK
+            WindowCompat.setDecorFitsSystemWindows(w, false)
+            w.navigationBarColor = android.graphics.Color.TRANSPARENT
+        }
+
+        // FIX: Ask the system how tall the navigation bar is right now (it
+        // varies: 3-button nav vs gesture pill vs device-to-device) and grow
+        // the keyboard/emoji panel by exactly that much so their background
+        // paints all the way down, while keeping the actual keys where they
+        // already were — nothing becomes tappable under the gesture area.
+        ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
+            val navBarPx = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            if (::keyboardView.isInitialized) keyboardView.setBottomInset(navBarPx)
+            if (::emojiPanelView.isInitialized) emojiPanelView.setBottomInset(navBarPx)
+            insets
         }
 
         keyboardView = KeyboardView(this)
@@ -107,7 +125,10 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
-        window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
+        window?.window?.let { w ->
+            WindowCompat.setDecorFitsSystemWindows(w, false)
+            w.navigationBarColor = android.graphics.Color.TRANSPARENT
+        }
         if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }

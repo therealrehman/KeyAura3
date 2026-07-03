@@ -139,6 +139,21 @@ class KeyboardView @JvmOverloads constructor(
     // FIX: Landscape - fixed height fraction, never expand
     private val keyboardHeightFraction = 0.35f
     private val landscapeHeightFraction = 0.30f
+
+    // FIX: extra height reserved at the bottom for the system navigation bar,
+    // so the background/glow (already anchored to the view's bottom edge in
+    // drawCoolGlow) can paint all the way down instead of stopping at the old
+    // view boundary. Key rows themselves stay within the original height —
+    // only createKeyMap's height argument is reduced by this, in onSizeChanged.
+    private var bottomInsetPx = 0
+
+    fun setBottomInset(px: Int) {
+        if (bottomInsetPx != px) {
+            bottomInsetPx = px
+            requestLayout()
+            postInvalidateOnAnimation()
+        }
+    }
     private val spaceRowHeightFactor = 1.0f // FIX: Space row same height as others
 
     private val keyPaint = Paint()
@@ -248,20 +263,21 @@ class KeyboardView @JvmOverloads constructor(
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
         val dm = context.resources.displayMetrics
         val isLandscape = dm.widthPixels > dm.heightPixels
-        val desiredHeight = if (isLandscape) {
+        val desiredContentHeight = if (isLandscape) {
             (dm.heightPixels * landscapeHeightFraction).toInt()
         } else {
             (dm.heightPixels * keyboardHeightFraction).toInt()
         }
+        val totalHeight = desiredContentHeight + bottomInsetPx
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(desiredHeight, View.MeasureSpec.EXACTLY)
+            View.MeasureSpec.makeMeasureSpec(totalHeight, View.MeasureSpec.EXACTLY)
         )
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        createKeyMap(w, h)
+        createKeyMap(w, h - bottomInsetPx)
     }
 
     private fun createKeyMap(width: Int, height: Int) {
