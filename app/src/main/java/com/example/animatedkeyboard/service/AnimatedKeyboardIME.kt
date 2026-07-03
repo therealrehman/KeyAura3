@@ -5,9 +5,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
@@ -24,26 +21,14 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onCreateInputView(): View {
         rootContainer = FrameLayout(this)
 
-        // FIX: Edge-to-edge so our own view can draw underneath the system
-        // navigation bar instead of stopping at its top edge. Without this,
-        // the OS reserves that strip for itself and nothing we draw can reach
-        // it — matching the color (done below) fills the gap, but only this
-        // lets the keyboard's own background/glow actually extend into it.
+        // FIX: Reverted the edge-to-edge/WindowInsets approach — InputMethodService
+        // windows don't reliably redeliver insets across every show/hide cycle on
+        // all devices (confirmed broken on a real device: correct on first open,
+        // then keys rendered underneath the nav bar on later opens). A solid
+        // color match is 100% reliable everywhere and still removes the visible
+        // gap — no window-flag/inset timing to depend on.
         window?.window?.let { w ->
-            WindowCompat.setDecorFitsSystemWindows(w, false)
-            w.navigationBarColor = android.graphics.Color.TRANSPARENT
-        }
-
-        // FIX: Ask the system how tall the navigation bar is right now (it
-        // varies: 3-button nav vs gesture pill vs device-to-device) and grow
-        // the keyboard/emoji panel by exactly that much so their background
-        // paints all the way down, while keeping the actual keys where they
-        // already were — nothing becomes tappable under the gesture area.
-        ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
-            val navBarPx = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-            if (::keyboardView.isInitialized) keyboardView.setBottomInset(navBarPx)
-            if (::emojiPanelView.isInitialized) emojiPanelView.setBottomInset(navBarPx)
-            insets
+            w.navigationBarColor = android.graphics.Color.BLACK
         }
 
         keyboardView = KeyboardView(this)
@@ -121,14 +106,13 @@ class AnimatedKeyboardIME : InputMethodService() {
     // FIX: Runs after the input view actually exists, so this is the reliable place
     // to tell KeyboardView which action the Return key should show/perform this time.
     // Also resets to the letter keyboard on every fresh field focus, matching how
-    // system keyboards never reopen mid-conversation on the emoji tray.
+    // system keyboards never reopen mid-conversation on the emoji tray. Re-applies
+    // the nav bar color every show too, since some OEM launchers reset window flags
+    // between app switches.
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
-        window?.window?.let { w ->
-            WindowCompat.setDecorFitsSystemWindows(w, false)
-            w.navigationBarColor = android.graphics.Color.TRANSPARENT
-        }
+        window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }

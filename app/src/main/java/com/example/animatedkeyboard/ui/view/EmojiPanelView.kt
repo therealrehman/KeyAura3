@@ -32,22 +32,9 @@ class EmojiPanelView @JvmOverloads constructor(
     private var listener: OnEmojiPanelListener? = null
     private val repository by lazy { EmojiRepository.getInstance(context) }
     private val gridView: EmojiGridCanvas
-    private var bottomInsetPx = 0
-    private var lastContentHeight = 0
 
     fun setOnEmojiPanelListener(l: OnEmojiPanelListener) {
         listener = l
-    }
-
-    // FIX: only the panel's own background should extend into the nav bar
-    // inset — the grid's internal tab/grid/mini-keyboard math assumes its
-    // height IS the usable content area, so it keeps a fixed height instead
-    // of MATCH_PARENT and simply doesn't stretch into the extra space.
-    fun setBottomInset(px: Int) {
-        if (bottomInsetPx != px) {
-            bottomInsetPx = px
-            requestLayout()
-        }
     }
 
     init {
@@ -66,31 +53,19 @@ class EmojiPanelView @JvmOverloads constructor(
     // expand to fill the entire available IME window height — visibly the whole
     // screen — since nothing constrained it the way KeyboardView constrains
     // itself. Forcing the exact same fraction here guarantees the emoji panel
-    // is always the same height as the keyboard, never taller (plus the nav
-    // bar inset, so its background can paint all the way down like the
-    // keyboard's does).
+    // is always the same height as the keyboard, never taller.
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
         val dm = resources.displayMetrics
         val isLandscape = dm.widthPixels > dm.heightPixels
-        val desiredContentHeight = if (isLandscape) {
+        val desiredHeight = if (isLandscape) {
             (dm.heightPixels * 0.30f).toInt()
         } else {
             (dm.heightPixels * 0.35f).toInt()
         }
-        lastContentHeight = desiredContentHeight
-        val totalHeight = desiredContentHeight + bottomInsetPx
-
-        val gridParams = gridView.layoutParams as LayoutParams
-        if (gridParams.height != desiredContentHeight) {
-            gridParams.height = desiredContentHeight
-            gridParams.gravity = android.view.Gravity.TOP
-            gridView.layoutParams = gridParams
-        }
-
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(totalHeight, View.MeasureSpec.EXACTLY)
+            View.MeasureSpec.makeMeasureSpec(desiredHeight, View.MeasureSpec.EXACTLY)
         )
     }
 

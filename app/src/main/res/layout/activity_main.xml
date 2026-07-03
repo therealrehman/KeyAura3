@@ -48,14 +48,6 @@
         android:gravity="center"
         android:padding="32dp">
 
-        <!-- App logo image -->
-        <ImageView
-            android:layout_width="88dp"
-            android:layout_height="88dp"
-            android:src="@drawable/ic_app_logo"
-            android:layout_marginBottom="12dp"
-            android:contentDescription="@null" />
-
         <!-- Logo wordmark -->
         <TextView
             android:id="@+id/logoText"
