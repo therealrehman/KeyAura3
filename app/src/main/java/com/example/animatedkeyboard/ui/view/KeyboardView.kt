@@ -227,7 +227,7 @@ class KeyboardView @JvmOverloads constructor(
         popupBorderPaint.style = Paint.Style.STROKE
         popupBorderPaint.strokeWidth = dp(1.5f)
         popupTextPaint.color = Color.WHITE
-        popupTextPaint.textSize = dp(22f)
+        popupTextPaint.textSize = dp(30f)
         popupTextPaint.isAntiAlias = true
         popupTextPaint.textAlign = Paint.Align.CENTER
         popupTextPaint.isFakeBoldText = true
@@ -278,7 +278,10 @@ class KeyboardView @JvmOverloads constructor(
 
     // FIX: top band reserved for the Urdu suggestion strip. Regular keys now
     // occupy 75% of the total keyboard height instead of 100%, per spec.
-    private val suggestionStripHeightFraction = 0.25f
+    // FIX: strip reduced to 60% of its previous height (0.25 -> 0.15); since key
+    // rows occupy whatever remains, this also gives them +10 percentage points
+    // (75% -> 85%) automatically, matching both requested changes in one constant.
+    private val suggestionStripHeightFraction = 0.15f
     private var lastStripHeightPx = 0
 
     private fun buildKeyMapInternal(width: Int, height: Int) {
@@ -707,6 +710,7 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(backspaceRunnable ?: Runnable {})
                 handler.removeCallbacks(capsLockRunnable ?: Runnable {})
+                currentPopup?.release()
                 if (!isSwiping && lastTouchedKey != null) {
                     val now = System.currentTimeMillis()
                     val skipDueToCapsLock = lastTouchedKey == "Shift" && capsLockJustActivated
@@ -725,6 +729,7 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(backspaceRunnable ?: Runnable {})
                 handler.removeCallbacks(capsLockRunnable ?: Runnable {})
+                currentPopup?.release()
                 capsLockJustActivated = false
                 lastTouchedKey = null
                 isSwiping = false
@@ -734,6 +739,13 @@ class KeyboardView @JvmOverloads constructor(
             }
         }
         return super.onTouchEvent(event)
+    }
+
+    // FIX: only single-character keys (letters, numbers, punctuation) get the
+    // magnified preview bubble — special keys already show their own icon/text
+    // and a giant popup over "Space" or "Shift" wouldn't read as a preview.
+    private fun isPreviewEligible(label: String): Boolean {
+        return label.length == 1
     }
 
     private fun handleTouchDown(x: Float, y: Float) {
@@ -748,7 +760,11 @@ class KeyboardView @JvmOverloads constructor(
                 // FIX: Per-key radial color animation for ALL keys
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 ripples.add(RippleEffect(rect.exactCenterX(), rect.exactCenterY()))
-                currentPopup = PopupEffect(label, rect.exactCenterX(), rect.top.toFloat() - dp(20f), rect.width().toFloat(), rect.height().toFloat())
+                if (isPreviewEligible(label)) {
+                    currentPopup = PopupEffect(label, rect.top.toFloat(), rect.exactCenterX(), rect.width().toFloat(), rect.height().toFloat())
+                } else {
+                    currentPopup?.release()
+                }
                 pressedKeys[label] = System.currentTimeMillis()
                 postInvalidateOnAnimation()
 
@@ -1023,34 +1039,51 @@ class KeyboardView @JvmOverloads constructor(
 
     private inner class PopupEffect(
         private val lbl: String,
+        private val keyTop: Float,
         private val px: Float,
-        private val py: Float,
         private val keyWidth: Float,
         private val keyHeight: Float
     ) {
         private var alp = 255
-        private var offY = 10f
         var finished = false
-        private val dur = 250L
-        private val start = System.currentTimeMillis()
+        private var released = false
+        private var releaseStart = 0L
+        private val fadeDur = 100L
+
+        // FIX: called on ACTION_UP/CANCEL — bubble stays fully visible while the
+        // key is held, then fades out quickly once the finger actually lifts,
+        // matching the classic press-and-hold key-preview behavior.
+        fun release() {
+            if (!released) {
+                released = true
+                releaseStart = System.currentTimeMillis()
+            }
+        }
 
         fun draw(canvas: Canvas) {
-            val p = (System.currentTimeMillis() - start).toFloat() / dur.toFloat()
-            if (p >= 1.0f) { finished = true; return }
-            if (p < 0.2f) {
-                offY = 10f - (10f * (p / 0.2f))
-                alp = 255
+            if (released) {
+                val p = (System.currentTimeMillis() - releaseStart).toFloat() / fadeDur.toFloat()
+                if (p >= 1.0f) { finished = true; return }
+                alp = (255 * (1 - p)).toInt()
             } else {
-                alp = (255 * (1 - (p - 0.2f) / 0.8f)).toInt()
+                alp = 255
             }
-            val pw = keyWidth * 1.2f
-            val ph = keyHeight * 1.2f
+
+            // FIX: bigger shield-shaped bubble (not just a slightly-enlarged key)
+            // that overlaps down into the key's own top edge so it reads as
+            // anchored to the key, like the reference preview popup.
+            val pw = keyWidth * 1.7f
+            val ph = keyHeight * 2.1f
+            val bubbleBottom = keyTop + keyHeight * 0.35f
+            val bubbleTop = bubbleBottom - ph
+            val radius = dp(14f)
+
             popupPaint.alpha = alp
-            canvas.drawRoundRect(px - pw / 2, py + offY, px + pw / 2, py + offY + ph, 15f, 15f, popupPaint)
+            canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupPaint)
             popupBorderPaint.alpha = alp
-            canvas.drawRoundRect(px - pw / 2, py + offY, px + pw / 2, py + offY + ph, 15f, 15f, popupBorderPaint)
+            canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupBorderPaint)
             popupTextPaint.alpha = alp
-            canvas.drawText(lbl.uppercase(), px, py + offY + ph / 2 + popupTextPaint.textSize / 3f, popupTextPaint)
+            canvas.drawText(lbl.uppercase(), px, bubbleTop + ph * 0.42f, popupTextPaint)
         }
     }
 }

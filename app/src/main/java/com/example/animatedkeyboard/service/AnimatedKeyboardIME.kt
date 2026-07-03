@@ -21,6 +21,13 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onCreateInputView(): View {
         rootContainer = FrameLayout(this)
 
+        // FIX: without this, the system navigation bar area below the keyboard
+        // stays transparent and shows the wallpaper through it instead of a
+        // solid color — visible as a mismatched gap under the keyboard.
+        window?.window?.let { w ->
+            w.navigationBarColor = android.graphics.Color.BLACK
+        }
+
         keyboardView = KeyboardView(this)
         keyboardView.setBackgroundColor(0x00000000)
         keyboardView.setOnCustomKeyListener(object : KeyboardView.OnKeyListener {
@@ -100,6 +107,7 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
+        window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }
