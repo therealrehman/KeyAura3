@@ -186,6 +186,7 @@ class KeyboardView @JvmOverloads constructor(
     private val activePointers = mutableMapOf<Int, String>()
     private val pointerPopups = mutableMapOf<Int, PopupEffect>()
     private var primaryPointerId = -1
+    private var lastSwipeKeyLabel: String? = null // FIX: avoids re-triggering the same note while lingering on one key mid-swipe
     private val popupPaint = Paint()
     private val popupBorderPaint = Paint()
     private val popupTextPaint = Paint()
@@ -726,6 +727,7 @@ class KeyboardView @JvmOverloads constructor(
                 touchStartY = event.y
                 isSwiping = false
                 isLongPress = false
+                lastSwipeKeyLabel = null
                 handleTouchDown(primaryPointerId, event.x, event.y, isPrimary = true)
                 return true
             }
@@ -900,6 +902,17 @@ class KeyboardView @JvmOverloads constructor(
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 pressedKeys[label] = System.currentTimeMillis()
                 postInvalidateOnAnimation()
+
+                // FIX: continuous musical swipe sound — plays one note of a
+                // pentatonic scale each time the finger glides onto a new key,
+                // chosen by horizontal position so any left-to-right swipe
+                // (on any row) plays a smooth ascending/descending run.
+                if (settings.soundEnabled && label != lastSwipeKeyLabel && width > 0) {
+                    lastSwipeKeyLabel = label
+                    val noteIndex = ((rect.exactCenterX() / width.toFloat()) * soundEngine.noteCount)
+                        .toInt().coerceIn(0, soundEngine.noteCount - 1)
+                    soundEngine.playSwipeTone(noteIndex)
+                }
                 break
             }
         }

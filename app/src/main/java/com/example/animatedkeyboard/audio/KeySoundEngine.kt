@@ -7,19 +7,24 @@ import android.util.Log
 import com.example.animatedkeyboard.R
 
 /**
- * Plays a bundled click sound (res/raw/key_click.wav) via SoundPool instead of
- * AudioManager.playSoundEffect(). The system version depends on the device's
- * "Touch sounds" setting being enabled AND the SYSTEM audio stream not being
- * muted — on many devices/OEM skins that's off by default, so it can silently
- * play nothing even though the code is "working". A bundled SoundPool sound
- * plays regardless of that setting, using its own audio stream.
+ * Plays two kinds of sound, both via bundled SoundPool assets (not
+ * AudioManager.playSoundEffect(), which silently depends on the device's
+ * "Touch sounds" setting and system volume stream — unreliable across devices):
+ *
+ *  - playClick(): the normal single tap sound (res/raw/key_click.wav)
+ *  - playSwipeTone(noteIndex): one note of a bundled C major pentatonic scale
+ *    (res/raw/swipe_note_0..9.wav), triggered continuously as a finger glides
+ *    across keys, so swiping the keyboard sounds like running a finger across
+ *    a wind chime / kalimba rather than a string of identical clicks. The
+ *    pentatonic scale is used specifically because any combination/order of
+ *    its notes is consonant — there's no "wrong" sequence to worry about.
  */
 class KeySoundEngine(context: Context) {
     private val TAG = "KeySoundEngine"
     private val appContext = context.applicationContext
 
     private val soundPool: SoundPool = SoundPool.Builder()
-        .setMaxStreams(4)
+        .setMaxStreams(6) // a few clicks/notes can legitimately overlap during fast swipes
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
@@ -28,29 +33,57 @@ class KeySoundEngine(context: Context) {
         )
         .build()
 
-    private var soundId = 0
-    private var isLoaded = false
+    private var clickSoundId = 0
+    private var isClickLoaded = false
+
+    // FIX: C major pentatonic scale (2 octaves) for the swipe glide sound.
+    private val swipeNoteResIds = intArrayOf(
+        R.raw.swipe_note_0, R.raw.swipe_note_1, R.raw.swipe_note_2, R.raw.swipe_note_3,
+        R.raw.swipe_note_4, R.raw.swipe_note_5, R.raw.swipe_note_6, R.raw.swipe_note_7,
+        R.raw.swipe_note_8, R.raw.swipe_note_9
+    )
+    private val swipeNoteSoundIds = IntArray(swipeNoteResIds.size)
+    private val swipeNoteLoaded = BooleanArray(swipeNoteResIds.size)
+
+    val noteCount: Int get() = swipeNoteResIds.size
 
     init {
         try {
-            soundPool.setOnLoadCompleteListener { _, _, status ->
-                isLoaded = status == 0
-                if (!isLoaded) {
-                    Log.w(TAG, "Sound failed to load, status=$status")
+            soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+                val loaded = status == 0
+                if (sampleId == clickSoundId) {
+                    isClickLoaded = loaded
+                } else {
+                    val idx = swipeNoteSoundIds.indexOf(sampleId)
+                    if (idx != -1) swipeNoteLoaded[idx] = loaded
                 }
             }
-            soundId = soundPool.load(appContext, R.raw.key_click, 1)
+            clickSoundId = soundPool.load(appContext, R.raw.key_click, 1)
+            for (i in swipeNoteResIds.indices) {
+                swipeNoteSoundIds[i] = soundPool.load(appContext, swipeNoteResIds[i], 1)
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not load key_click sound: ${e.message}")
+            Log.w(TAG, "Could not load sounds: ${e.message}")
         }
     }
 
     fun playClick() {
-        if (!isLoaded || soundId == 0) return
+        if (!isClickLoaded || clickSoundId == 0) return
         try {
-            soundPool.play(soundId, 0.5f, 0.5f, 1, 0, 1.0f)
+            soundPool.play(clickSoundId, 0.5f, 0.5f, 1, 0, 1.0f)
         } catch (e: Exception) {
-            Log.w(TAG, "Could not play sound: ${e.message}")
+            Log.w(TAG, "Could not play click: ${e.message}")
+        }
+    }
+
+    /** Plays one note of the pentatonic scale; noteIndex wraps to stay in range. */
+    fun playSwipeTone(noteIndex: Int) {
+        val idx = ((noteIndex % noteCount) + noteCount) % noteCount // safe wrap for negatives too
+        if (!swipeNoteLoaded[idx]) return
+        try {
+            soundPool.play(swipeNoteSoundIds[idx], 0.35f, 0.35f, 1, 0, 1.0f)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not play swipe tone: ${e.message}")
         }
     }
 
