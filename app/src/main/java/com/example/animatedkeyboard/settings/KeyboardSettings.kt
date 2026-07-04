@@ -81,6 +81,17 @@ class KeyboardSettings private constructor(context: Context) {
         prefs.edit().putString("eng_pref_$prefixLower", chosenWord).apply()
     }
 
+    // Which of the 5 swipe-tune instruments is active (see KeySoundEngine.TUNE_NAMES).
+    var selectedTuneIndex: Int
+        get() = prefs.getInt("selected_tune_index", 0)
+        set(value) = prefs.edit().putInt("selected_tune_index", value.coerceIn(0, 4)).apply()
+
+    // UI toggle only for now — the actual ninja fighting overlay feature is
+    // being built later; this just persists the on/off state ahead of that.
+    var ninjaModeEnabled: Boolean
+        get() = prefs.getBoolean("ninja_mode_enabled", false)
+        set(value) = prefs.edit().putBoolean("ninja_mode_enabled", value).apply()
+
     var animationEnabled: Boolean
         get() = prefs.getBoolean("animation", true)
         set(value) = prefs.edit().putBoolean("animation", value).apply()

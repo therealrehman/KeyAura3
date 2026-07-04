@@ -63,6 +63,15 @@ class MainActivity : AppCompatActivity() {
             settings.hapticEnabled = !settings.hapticEnabled
             updateToggleStates()
         }
+
+        findViewById<androidx.cardview.widget.CardView>(R.id.btnTune).setOnClickListener {
+            startActivity(Intent(this, TuneSelectionActivity::class.java))
+        }
+
+        findViewById<LinearLayout>(R.id.btnToggleNinjaMode).setOnClickListener {
+            settings.ninjaModeEnabled = !settings.ninjaModeEnabled
+            updateToggleStates()
+        }
     }
 
     override fun onResume() {
@@ -122,5 +131,9 @@ class MainActivity : AppCompatActivity() {
 
         iconVibration.alpha = if (settings.hapticEnabled) 1.0f else 0.35f
         labelVibration.text = if (settings.hapticEnabled) "Vibration" else "Vibration off"
+
+        val labelNinjaMode = findViewById<TextView>(R.id.labelNinjaMode)
+        labelNinjaMode.text = if (settings.ninjaModeEnabled) "ON" else "OFF"
+        labelNinjaMode.setTextColor(if (settings.ninjaModeEnabled) 0xFF4CD964.toInt() else 0xFF888888.toInt())
     }
 }

@@ -29,6 +29,12 @@
             android:exported="false"
             android:theme="@style/Theme.KeyAura" />
 
+        <!-- Tune Selection Activity -->
+        <activity
+            android:name=".TuneSelectionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KeyAura" />
+
         <!-- Keyboard IME Service -->
         <service
             android:name=".service.AnimatedKeyboardIME"
