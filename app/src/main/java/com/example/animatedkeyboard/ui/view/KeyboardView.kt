@@ -157,7 +157,7 @@ class KeyboardView @JvmOverloads constructor(
     private val density = context.resources.displayMetrics.density
     private fun dp(value: Float): Float = value * density
 
-    private val horizontalKeyGapDp = 4f
+    private val horizontalKeyGapDp = 3.2f // FIX: reduced 20% (was 4f) — less gap for fingers to miss into
     private val verticalRowGapDp = 6f
     private val sideMarginDp = 3f
     private val topBottomMarginDp = 4f
@@ -337,18 +337,23 @@ class KeyboardView @JvmOverloads constructor(
         var currentY = stripHeightPx + topBottomMargin
 
         for ((rowIndex, row) in currentLayout.withIndex()) {
-            val availableRowWidth = width - (sideMargin * 2) - (hGap * (row.size - 1))
+            // FIX: asdfghjkl row gets a visibly bigger side inset (4x) than other
+            // rows — previously it shared the same margin as every other row, so
+            // 'a'/'l' sat flush with 'q'/'p' above them with no stagger at all.
+            val isHomeRow = currentLayout === letterLayout && rowIndex == 2
+            val rowSideMargin = if (isHomeRow) dp(sideMarginDp * 4f).toInt() else sideMargin
+            val availableRowWidth = width - (rowSideMargin * 2) - (hGap * (row.size - 1))
             var totalWeight = 0.0
             for (item in row) {
                 totalWeight += getWeight(item).toDouble()
             }
             val tw = totalWeight.toFloat()
-            var currentX = sideMargin
+            var currentX = rowSideMargin
 
             for ((keyIndex, keyLabel) in row.withIndex()) {
                 val isLastKeyInRow = keyIndex == row.lastIndex
                 val kw = (availableRowWidth * (getWeight(keyLabel) / tw)).roundToInt()
-                val safeRight = if (isLastKeyInRow) (width - sideMargin) else (currentX + kw)
+                val safeRight = if (isLastKeyInRow) (width - rowSideMargin) else (currentX + kw)
                 keyMap[keyLabel] = Rect(currentX, currentY, safeRight, currentY + rowHeight)
                 keyStates[keyLabel] = KeyState.NORMAL
                 currentX = safeRight + hGap
@@ -550,15 +555,43 @@ class KeyboardView @JvmOverloads constructor(
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
             else -> if (label.startsWith("sugg")) {
-                // FIX: suggestion chips show the actual Urdu candidate text, not the raw "sugg0" label.
+                // FIX: suggestion chips show the actual candidate text, not the raw
+                // "sugg0" label. Previously drawn at a fixed size with no width
+                // check, so longer words overflowed their chip and visually
+                // overlapped the next one — now shrinks to fit, then ellipsizes
+                // as a last resort, so it can never spill past its own chip.
                 val index = label.removePrefix("sugg").toIntOrNull()
                 val word = index?.let { currentSuggestions.getOrNull(it) } ?: ""
-                val p = Paint(textPaint).apply { textSize = dp(14f) }
-                canvas.drawText(word, rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
+                drawFittedChipText(canvas, word, rect)
             } else {
                 canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
             }
         }
+    }
+
+    private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
+        if (word.isEmpty()) return
+        val maxWidth = rect.width() * 0.88f
+        val maxTextSizePx = dp(14f)
+        val minTextSizePx = dp(9f)
+        val p = Paint(textPaint).apply { textSize = maxTextSizePx }
+
+        var size = maxTextSizePx
+        while (size > minTextSizePx && p.measureText(word) > maxWidth) {
+            size -= dp(0.5f)
+            p.textSize = size
+        }
+
+        var display = word
+        if (p.measureText(display) > maxWidth) {
+            // Still doesn't fit even at the minimum size — ellipsize as a last resort.
+            while (display.length > 1 && p.measureText("$display\u2026") > maxWidth) {
+                display = display.dropLast(1)
+            }
+            display += "\u2026"
+        }
+
+        canvas.drawText(display, rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
     }
 
     // FIX: Dispatches to the right glyph based on the field's requested editor action.
@@ -766,8 +799,27 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_POINTER_UP -> {
                 val idx = event.actionIndex
                 val pid = event.getPointerId(idx)
-                if (pid != primaryPointerId) {
-                    commitPointerKey(pid)
+                // FIX: previously only committed/released non-primary pointers here —
+                // if the PRIMARY finger lifted first (while another finger was still
+                // down), Android fires this same event for it too, but its key/popup
+                // was never committed or released, leaving the popup stuck on screen
+                // permanently. Now every lifting pointer is always committed here.
+                commitPointerKey(pid)
+                if (pid == primaryPointerId) {
+                    // Primary finger lifted early — hand swipe-tracking off to
+                    // whichever other finger is still down instead of leaving
+                    // primaryPointerId pointing at a finger that's no longer there.
+                    for (i in 0 until event.pointerCount) {
+                        val candidateId = event.getPointerId(i)
+                        if (candidateId != pid) {
+                            primaryPointerId = candidateId
+                            touchStartX = event.getX(i)
+                            touchStartY = event.getY(i)
+                            isSwiping = false
+                            lastSwipeKeyLabel = null
+                            break
+                        }
+                    }
                 }
                 return true
             }
@@ -1157,13 +1209,6 @@ class KeyboardView @JvmOverloads constructor(
         private var releaseStart = 0L
         private val fadeDur = 100L
 
-        // FIX: bottom-to-top reveal animation on appearance — bubble's final
-        // size never changes (still pw x ph below), it's just progressively
-        // clipped-in from the bottom edge upward over a short duration instead
-        // of popping in instantly at full size.
-        private val createdAt = System.currentTimeMillis()
-        private val revealDur = 80L
-
         // FIX: called on ACTION_UP/CANCEL — bubble stays fully visible while the
         // key is held, then fades out quickly once the finger actually lifts,
         // matching the classic press-and-hold key-preview behavior.
@@ -1183,33 +1228,20 @@ class KeyboardView @JvmOverloads constructor(
                 alp = 255
             }
 
-            // FIX: bigger shield-shaped bubble (not just a slightly-enlarged key)
-            // that overlaps down into the key's own top edge so it reads as
-            // anchored to the key, like the reference preview popup.
-            val pw = keyWidth * 1.7f
-            val ph = keyHeight * 2.1f
+            // FIX: size reduced ~30% (was 1.7x/2.1x key size) — bubble was too big.
+            val pw = keyWidth * 1.19f
+            val ph = keyHeight * 1.47f
             val bubbleBottom = keyTop + keyHeight * 0.35f
             val bubbleTop = bubbleBottom - ph
             val radius = dp(14f)
 
-            val revealProgress = ((System.currentTimeMillis() - createdAt).toFloat() / revealDur).coerceIn(0f, 1f)
-
-            canvas.save()
-            if (revealProgress < 1f) {
-                canvas.clipRect(px - pw / 2, bubbleBottom - ph * revealProgress, px + pw / 2, bubbleBottom)
-            }
-
+            // FIX: popup shows instantly/normally again — reveal-grow animation removed.
             popupPaint.alpha = alp
             canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupPaint)
             popupBorderPaint.alpha = alp
             canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupBorderPaint)
             popupTextPaint.alpha = alp
             canvas.drawText(lbl.uppercase(), px, bubbleTop + ph * 0.42f, popupTextPaint)
-            canvas.restore()
-
-            if (revealProgress < 1f) {
-                postInvalidateOnAnimation() // keep animating the reveal
-            }
         }
     }
 }
