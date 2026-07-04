@@ -191,7 +191,7 @@ class KeyboardView @JvmOverloads constructor(
     private val keyMap = mutableMapOf<String, Rect>()
     private val keyCodes = mutableMapOf<String, Int>()
     private var lastKeyTime = 0L
-    private val debounceInterval = 100L
+    private val debounceInterval = 25L // FIX: was 100ms — blocked legitimate fast typing across different keys
     private var touchStartX = 0f
     private var touchStartY = 0f
     private val swipeThreshold = 50f
@@ -748,14 +748,25 @@ class KeyboardView @JvmOverloads constructor(
         return label.length == 1
     }
 
+    // FIX: touch sensitivity — real keyboards always accept taps slightly outside
+    // a key's exact boundary ("hit slop"); without this, a tap landing 1-2px past
+    // a key's edge silently registers as nothing. 2dp is safely inside the 4dp/6dp
+    // gaps between keys, so adjacent keys' expanded zones never overlap each other.
+    private val touchSlopPx by lazy { dp(2f).toInt() }
+    private val hitTestRect = Rect()
+
     private fun handleTouchDown(x: Float, y: Float) {
         for ((label, rect) in keyMap) {
-            if (rect.contains(x.toInt(), y.toInt())) {
+            hitTestRect.set(rect)
+            hitTestRect.inset(-touchSlopPx, -touchSlopPx)
+            if (hitTestRect.contains(x.toInt(), y.toInt())) {
                 lastTouchedKey = label
                 if (settings.hapticEnabled) {
                     performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
                 }
-                soundEngine.playClick()
+                if (settings.soundEnabled) {
+                    soundEngine.playClick()
+                }
 
                 // FIX: Per-key radial color animation for ALL keys
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
@@ -802,7 +813,9 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun handleSwipeAnim(x: Float, y: Float) {
         for ((label, rect) in keyMap) {
-            if (rect.contains(x.toInt(), y.toInt())) {
+            hitTestRect.set(rect)
+            hitTestRect.inset(-touchSlopPx, -touchSlopPx)
+            if (hitTestRect.contains(x.toInt(), y.toInt())) {
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 pressedKeys[label] = System.currentTimeMillis()
                 postInvalidateOnAnimation()
