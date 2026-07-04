@@ -47,7 +47,16 @@ class AnimatedKeyboardIME : InputMethodService() {
                         if (!selected.isNullOrEmpty()) {
                             ic.commitText("", 1)
                         } else {
-                            ic.deleteSurroundingText(1, 0)
+                            // FIX: most emoji are UTF-16 surrogate pairs (2 char units for
+                            // 1 visual emoji). Deleting only 1 unit leaves the other half
+                            // orphaned, which renders as a broken "?" box until Del is
+                            // pressed a second time. Delete both units together when the
+                            // text right before the cursor is a surrogate pair.
+                            val beforeCursor = ic.getTextBeforeCursor(2, 0)
+                            val deleteLength = if (beforeCursor != null && beforeCursor.length == 2 &&
+                                Character.isSurrogatePair(beforeCursor[0], beforeCursor[1])
+                            ) 2 else 1
+                            ic.deleteSurroundingText(deleteLength, 0)
                         }
                     }
                     -4 -> handleSmartEnter()

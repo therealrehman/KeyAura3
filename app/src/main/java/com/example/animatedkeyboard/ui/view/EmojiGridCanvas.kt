@@ -113,7 +113,7 @@ class EmojiGridCanvas @JvmOverloads constructor(
     private var backButtonRect = Rect()
     private var searchButtonRect = Rect()
 
-    private var pressedCellIndex = -1
+    private var pressedEntry: EmojiEntry? = null
     private var pressedTab: String? = null
     private var pressedMiniKey: String? = null
     private var isDraggingScroll = false
@@ -382,7 +382,7 @@ class EmojiGridCanvas @JvmOverloads constructor(
             )
             cellRects.add(rect to entry)
 
-            if (pressedCellIndex == index) {
+            if (pressedEntry == entry) {
                 canvas.drawRoundRect(
                     rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(),
                     dp(8f), dp(8f), emojiPressedBgPaint
@@ -441,7 +441,7 @@ class EmojiGridCanvas @JvmOverloads constructor(
                 }
                 val cell = cellRects.withIndex().firstOrNull { (_, pair) -> pair.first.contains(event.x.toInt(), event.y.toInt()) }
                 if (cell != null) {
-                    pressedCellIndex = cell.index
+                    pressedEntry = cell.value.second
                     postInvalidateOnAnimation()
                 }
                 return true
@@ -450,7 +450,7 @@ class EmojiGridCanvas @JvmOverloads constructor(
                 val dy = event.y - dragStartY
                 if (!isDraggingScroll && abs(dy) > dragThreshold) {
                     isDraggingScroll = true
-                    pressedCellIndex = -1
+                    pressedEntry = null
                     pressedTab = null
                     pressedMiniKey = null
                 }
@@ -480,12 +480,16 @@ class EmojiGridCanvas @JvmOverloads constructor(
                             val groups = tabGroups()
                             val idx = groups.indexOf(tab)
                             if (idx >= 0) showCategory(idx)
-                        } else if (pressedCellIndex in currentItems.indices) {
-                            onEmojiTapped?.invoke(currentItems[pressedCellIndex])
+                        } else if (pressedEntry != null) {
+                            // FIX: uses the entry captured directly at touch-down time
+                            // instead of re-indexing into any list — immune to the
+                            // cellRects/currentItems index mismatch that caused taps
+                            // to sometimes commit the wrong emoji.
+                            onEmojiTapped?.invoke(pressedEntry!!)
                         }
                     }
                 }
-                pressedCellIndex = -1
+                pressedEntry = null
                 pressedTab = null
                 pressedMiniKey = null
                 postInvalidateOnAnimation()

@@ -43,6 +43,33 @@ class KeyboardView @JvmOverloads constructor(
     private val urduRepo by lazy { UrduSuggestionRepository.getInstance(context) }
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
 
+    // FIX: direct Vibrator control instead of performHapticFeedback(KEYBOARD_TAP)
+    // — the latter's duration/strength is decided by the device's own haptic
+    // engine and can't be tuned; this lets duration+amplitude be set precisely
+    // and consistently across devices.
+    private val vibrator by lazy {
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+    }
+
+    private fun triggerKeyHaptic() {
+        val v = vibrator ?: return
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                v.vibrate(
+                    android.os.VibrationEffect.createOneShot(
+                        settings.hapticDurationMs,
+                        settings.hapticAmplitude
+                    )
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(settings.hapticDurationMs)
+            }
+        } catch (e: Exception) {
+            // Some devices/emulators lack a vibrator or reject the call — fail silently.
+        }
+    }
+
     // FIX: Urdu punctuation, from special_charachters_urdu.xml — only the marks
     // that actually differ from their Latin counterparts are listed; identity
     // entries (numbers, brackets, etc.) are skipped since there's nothing to map.
@@ -153,7 +180,12 @@ class KeyboardView @JvmOverloads constructor(
     private val pressedKeys = mutableMapOf<String, Long>()
     private val keyStates = mutableMapOf<String, KeyState>()
     private val ripples = mutableListOf<RippleEffect>()
-    private var currentPopup: PopupEffect? = null
+    // FIX: multi-touch — each finger (pointerId) tracks its own key + popup
+    // independently, so two-thumb typing no longer drops keys when a second
+    // finger touches down while the first hasn't lifted yet.
+    private val activePointers = mutableMapOf<Int, String>()
+    private val pointerPopups = mutableMapOf<Int, PopupEffect>()
+    private var primaryPointerId = -1
     private val popupPaint = Paint()
     private val popupBorderPaint = Paint()
     private val popupTextPaint = Paint()
@@ -196,7 +228,6 @@ class KeyboardView @JvmOverloads constructor(
     private var touchStartY = 0f
     private val swipeThreshold = 50f
     private var isSwiping = false
-    private var lastTouchedKey: String? = null
     private var isLongPress = false
     private var longPressKey: String? = null
     private var capsLockJustActivated = false
@@ -387,7 +418,7 @@ class KeyboardView @JvmOverloads constructor(
             for ((label, rect) in keyMap) {
                 drawKey(canvas, label, rect)
             }
-            currentPopup?.draw(canvas)
+            for (popup in pointerPopups.values) popup.draw(canvas)
             postInvalidateOnAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Rendering error: ${e.message}")
@@ -688,39 +719,66 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                primaryPointerId = event.getPointerId(0)
                 touchStartX = event.x
                 touchStartY = event.y
                 isSwiping = false
-                lastTouchedKey = null
                 isLongPress = false
-                handleTouchDown(event.x, event.y)
+                handleTouchDown(primaryPointerId, event.x, event.y, isPrimary = true)
+                return true
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // FIX: a second (or third) finger touching down mid-typing —
+                // each finger now gets recognized and independently tracked
+                // instead of only ever the very first finger, which is what
+                // caused keys to get silently missed during fast two-thumb typing.
+                val idx = event.actionIndex
+                val pid = event.getPointerId(idx)
+                handleTouchDown(pid, event.getX(idx), event.getY(idx), isPrimary = false)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - touchStartX
-                val dy = event.y - touchStartY
-                val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                if (dist > swipeThreshold) isSwiping = true
-                if (!isSwiping) handleTouchDown(event.x, event.y)
-                else handleSwipeAnim(event.x, event.y)
+                val primaryIndex = event.findPointerIndex(primaryPointerId)
+                if (primaryIndex != -1) {
+                    val dx = event.getX(primaryIndex) - touchStartX
+                    val dy = event.getY(primaryIndex) - touchStartY
+                    val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                    if (dist > swipeThreshold) {
+                        if (!isSwiping) {
+                            // FIX: don't leave the starting key's preview bubble hanging
+                            // once this is recognized as a swipe/drag rather than a tap.
+                            pointerPopups.remove(primaryPointerId)?.release()
+                        }
+                        isSwiping = true
+                    }
+                    if (!isSwiping) {
+                        handleTouchDown(primaryPointerId, event.getX(primaryIndex), event.getY(primaryIndex), isPrimary = true)
+                    } else {
+                        handleSwipeAnim(event.getX(primaryIndex), event.getY(primaryIndex))
+                    }
+                }
+                return true
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                val idx = event.actionIndex
+                val pid = event.getPointerId(idx)
+                if (pid != primaryPointerId) {
+                    commitPointerKey(pid)
+                }
                 return true
             }
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(backspaceRunnable ?: Runnable {})
                 handler.removeCallbacks(capsLockRunnable ?: Runnable {})
-                currentPopup?.release()
-                if (!isSwiping && lastTouchedKey != null) {
-                    val now = System.currentTimeMillis()
-                    val skipDueToCapsLock = lastTouchedKey == "Shift" && capsLockJustActivated
-                    if (now - lastKeyTime > debounceInterval && !skipDueToCapsLock) {
-                        lastKeyTime = now
-                        commitKey(lastTouchedKey!!)
-                    }
+                if (!isSwiping) {
+                    commitPointerKey(primaryPointerId)
+                } else {
+                    activePointers.remove(primaryPointerId)
+                    pointerPopups.remove(primaryPointerId)?.release()
                 }
                 capsLockJustActivated = false
-                lastTouchedKey = null
                 isSwiping = false
                 isLongPress = false
                 longPressKey = null
@@ -729,9 +787,11 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(backspaceRunnable ?: Runnable {})
                 handler.removeCallbacks(capsLockRunnable ?: Runnable {})
-                currentPopup?.release()
+                for (pid in activePointers.keys.toList()) {
+                    pointerPopups.remove(pid)?.release()
+                }
+                activePointers.clear()
                 capsLockJustActivated = false
-                lastTouchedKey = null
                 isSwiping = false
                 isLongPress = false
                 longPressKey = null
@@ -755,14 +815,31 @@ class KeyboardView @JvmOverloads constructor(
     private val touchSlopPx by lazy { dp(2f).toInt() }
     private val hitTestRect = Rect()
 
-    private fun handleTouchDown(x: Float, y: Float) {
+    // FIX: commits whatever key a specific finger was resting on and cleans up
+    // that finger's tracked state — used by both the primary pointer's UP and
+    // any secondary finger's UP, so every finger reliably finishes its own tap.
+    private fun commitPointerKey(pointerId: Int) {
+        val label = activePointers.remove(pointerId)
+        pointerPopups.remove(pointerId)?.release()
+        if (label != null) {
+            val now = System.currentTimeMillis()
+            val skipDueToCapsLock = label == "Shift" && capsLockJustActivated
+            if (now - lastKeyTime > debounceInterval && !skipDueToCapsLock) {
+                lastKeyTime = now
+                commitKey(label)
+            }
+        }
+    }
+
+    private fun handleTouchDown(pointerId: Int, x: Float, y: Float, isPrimary: Boolean) {
         for ((label, rect) in keyMap) {
             hitTestRect.set(rect)
             hitTestRect.inset(-touchSlopPx, -touchSlopPx)
             if (hitTestRect.contains(x.toInt(), y.toInt())) {
-                lastTouchedKey = label
+                if (activePointers[pointerId] == label) return // already tracking this finger on this key
+                activePointers[pointerId] = label
                 if (settings.hapticEnabled) {
-                    performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+                    triggerKeyHaptic()
                 }
                 if (settings.soundEnabled) {
                     soundEngine.playClick()
@@ -772,14 +849,18 @@ class KeyboardView @JvmOverloads constructor(
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 ripples.add(RippleEffect(rect.exactCenterX(), rect.exactCenterY()))
                 if (isPreviewEligible(label)) {
-                    currentPopup = PopupEffect(label, rect.top.toFloat(), rect.exactCenterX(), rect.width().toFloat(), rect.height().toFloat())
+                    pointerPopups[pointerId] = PopupEffect(label, rect.top.toFloat(), rect.exactCenterX(), rect.width().toFloat(), rect.height().toFloat())
                 } else {
-                    currentPopup?.release()
+                    pointerPopups.remove(pointerId)?.release()
                 }
                 pressedKeys[label] = System.currentTimeMillis()
                 postInvalidateOnAnimation()
 
-                if (label == "Del") {
+                // FIX: long-press-to-repeat (Del) and long-press-to-lock (Shift) stay
+                // scoped to the primary finger only — these are inherently one-finger
+                // gestures, and a second finger tapping Del/Shift still works as a
+                // normal single tap via commitPointerKey, just without triggering repeat/lock.
+                if (isPrimary && label == "Del") {
                     isLongPress = true
                     longPressKey = label
                     backspaceRunnable = object : Runnable {
@@ -793,7 +874,7 @@ class KeyboardView @JvmOverloads constructor(
                     handler.postDelayed(backspaceRunnable!!, 500)
                 }
 
-                if (label == "Shift") {
+                if (isPrimary && label == "Shift") {
                     isLongPress = true
                     longPressKey = label
                     capsLockRunnable = Runnable {
@@ -1063,6 +1144,13 @@ class KeyboardView @JvmOverloads constructor(
         private var releaseStart = 0L
         private val fadeDur = 100L
 
+        // FIX: bottom-to-top reveal animation on appearance — bubble's final
+        // size never changes (still pw x ph below), it's just progressively
+        // clipped-in from the bottom edge upward over a short duration instead
+        // of popping in instantly at full size.
+        private val createdAt = System.currentTimeMillis()
+        private val revealDur = 80L
+
         // FIX: called on ACTION_UP/CANCEL — bubble stays fully visible while the
         // key is held, then fades out quickly once the finger actually lifts,
         // matching the classic press-and-hold key-preview behavior.
@@ -1091,12 +1179,24 @@ class KeyboardView @JvmOverloads constructor(
             val bubbleTop = bubbleBottom - ph
             val radius = dp(14f)
 
+            val revealProgress = ((System.currentTimeMillis() - createdAt).toFloat() / revealDur).coerceIn(0f, 1f)
+
+            canvas.save()
+            if (revealProgress < 1f) {
+                canvas.clipRect(px - pw / 2, bubbleBottom - ph * revealProgress, px + pw / 2, bubbleBottom)
+            }
+
             popupPaint.alpha = alp
             canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupPaint)
             popupBorderPaint.alpha = alp
             canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupBorderPaint)
             popupTextPaint.alpha = alp
             canvas.drawText(lbl.uppercase(), px, bubbleTop + ph * 0.42f, popupTextPaint)
+            canvas.restore()
+
+            if (revealProgress < 1f) {
+                postInvalidateOnAnimation() // keep animating the reveal
+            }
         }
     }
 }

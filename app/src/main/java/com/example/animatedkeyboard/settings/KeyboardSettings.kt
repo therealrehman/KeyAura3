@@ -21,6 +21,18 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getBoolean("haptic", true)
         set(value) = prefs.edit().putBoolean("haptic", value).apply()
 
+    // FIX: Direct control over vibration timing/strength — previously the app
+    // used performHapticFeedback(KEYBOARD_TAP), whose actual duration/intensity
+    // is decided by the device's own haptic engine (varies wildly by OEM). This
+    // lets the app fully control both, independent of device defaults.
+    var hapticDurationMs: Long
+        get() = prefs.getLong("haptic_duration_ms", 12L)
+        set(value) = prefs.edit().putLong("haptic_duration_ms", value.coerceIn(1L, 100L)).apply()
+
+    var hapticAmplitude: Int
+        get() = prefs.getInt("haptic_amplitude", 60)
+        set(value) = prefs.edit().putInt("haptic_amplitude", value.coerceIn(1, 255)).apply()
+
     var soundEnabled: Boolean
         get() = prefs.getBoolean("sound", true)
         set(value) = prefs.edit().putBoolean("sound", value).apply()
