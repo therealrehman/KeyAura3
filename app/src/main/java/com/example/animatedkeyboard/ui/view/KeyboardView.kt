@@ -921,7 +921,14 @@ class KeyboardView @JvmOverloads constructor(
                     // before the swipe tune took over. Deferring it briefly lets
                     // ACTION_MOVE cancel it the moment a swipe is detected.
                     pendingClickRunnables.remove(pointerId)?.let { handler.removeCallbacks(it) }
-                    val runnable = Runnable { soundEngine.playClick() }
+                    val runnable = Runnable {
+                        // FIX: must remove itself here — otherwise a tap slower than
+                        // the defer delay played the sound naturally AND then again
+                        // when commitPointerKey ran (it wrongly assumed "still in the
+                        // map" meant "hasn't played yet"), causing a double sound.
+                        pendingClickRunnables.remove(pointerId)
+                        soundEngine.playClick()
+                    }
                     pendingClickRunnables[pointerId] = runnable
                     handler.postDelayed(runnable, clickSoundDelayMs)
                 }
