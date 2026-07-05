@@ -1,6 +1,7 @@
 package com.example.animatedkeyboard.service
 
 import android.inputmethodservice.InputMethodService
+import android.media.AudioManager
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -30,6 +31,10 @@ class AnimatedKeyboardIME : InputMethodService() {
         window?.window?.let { w ->
             w.navigationBarColor = android.graphics.Color.BLACK
         }
+        // FIX: makes the phone's physical volume buttons control our key/swipe
+        // sounds — without this, pressing volume up/down while typing usually
+        // adjusts ringtone/notification volume instead, not the keyboard's sounds.
+        window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
 
         keyboardView = KeyboardView(this)
         keyboardView.setBackgroundColor(0x00000000)
@@ -122,6 +127,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
+        window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
         if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }

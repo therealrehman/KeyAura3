@@ -22,7 +22,7 @@ class KeySoundEngine(context: Context) {
         .setMaxStreams(6)
         .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_MEDIA) // FIX: media stream = controllable via phone volume buttons
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
         )
