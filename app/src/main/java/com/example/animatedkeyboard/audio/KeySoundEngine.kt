@@ -121,7 +121,10 @@ class KeySoundEngine(context: Context) {
     companion object {
         // FIX: shared list of tune names + resource-id lookup, used both here
         // and by the Tune selection screen, so they never drift out of sync.
-        val TUNE_NAMES = listOf("Chime", "Tabla", "Marimba", "Piano", "Flute")
+        val TUNE_NAMES = listOf(
+            "Chime", "Tabla", "Marimba", "Piano", "Flute",
+            "Electric Guitar", "Music Box", "Synth Pad", "Steel Drum", "Harp"
+        )
 
         fun resIdsForTune(tuneIndex: Int): IntArray {
             val safeIndex = tuneIndex.coerceIn(0, TUNE_NAMES.size - 1)
@@ -142,9 +145,29 @@ class KeySoundEngine(context: Context) {
                     R.raw.tune_3_note_0, R.raw.tune_3_note_1, R.raw.tune_3_note_2, R.raw.tune_3_note_3, R.raw.tune_3_note_4,
                     R.raw.tune_3_note_5, R.raw.tune_3_note_6, R.raw.tune_3_note_7, R.raw.tune_3_note_8, R.raw.tune_3_note_9
                 )
-                else -> intArrayOf(
+                4 -> intArrayOf(
                     R.raw.tune_4_note_0, R.raw.tune_4_note_1, R.raw.tune_4_note_2, R.raw.tune_4_note_3, R.raw.tune_4_note_4,
                     R.raw.tune_4_note_5, R.raw.tune_4_note_6, R.raw.tune_4_note_7, R.raw.tune_4_note_8, R.raw.tune_4_note_9
+                )
+                5 -> intArrayOf(
+                    R.raw.tune_5_note_0, R.raw.tune_5_note_1, R.raw.tune_5_note_2, R.raw.tune_5_note_3, R.raw.tune_5_note_4,
+                    R.raw.tune_5_note_5, R.raw.tune_5_note_6, R.raw.tune_5_note_7, R.raw.tune_5_note_8, R.raw.tune_5_note_9
+                )
+                6 -> intArrayOf(
+                    R.raw.tune_6_note_0, R.raw.tune_6_note_1, R.raw.tune_6_note_2, R.raw.tune_6_note_3, R.raw.tune_6_note_4,
+                    R.raw.tune_6_note_5, R.raw.tune_6_note_6, R.raw.tune_6_note_7, R.raw.tune_6_note_8, R.raw.tune_6_note_9
+                )
+                7 -> intArrayOf(
+                    R.raw.tune_7_note_0, R.raw.tune_7_note_1, R.raw.tune_7_note_2, R.raw.tune_7_note_3, R.raw.tune_7_note_4,
+                    R.raw.tune_7_note_5, R.raw.tune_7_note_6, R.raw.tune_7_note_7, R.raw.tune_7_note_8, R.raw.tune_7_note_9
+                )
+                8 -> intArrayOf(
+                    R.raw.tune_8_note_0, R.raw.tune_8_note_1, R.raw.tune_8_note_2, R.raw.tune_8_note_3, R.raw.tune_8_note_4,
+                    R.raw.tune_8_note_5, R.raw.tune_8_note_6, R.raw.tune_8_note_7, R.raw.tune_8_note_8, R.raw.tune_8_note_9
+                )
+                else -> intArrayOf(
+                    R.raw.tune_9_note_0, R.raw.tune_9_note_1, R.raw.tune_9_note_2, R.raw.tune_9_note_3, R.raw.tune_9_note_4,
+                    R.raw.tune_9_note_5, R.raw.tune_9_note_6, R.raw.tune_9_note_7, R.raw.tune_9_note_8, R.raw.tune_9_note_9
                 )
             }
         }

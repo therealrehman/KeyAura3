@@ -194,6 +194,10 @@ class KeyboardView @JvmOverloads constructor(
     private val pointerPopups = mutableMapOf<Int, PopupEffect>()
     private var primaryPointerId = -1
     private var lastSwipeKeyLabel: String? = null // FIX: avoids re-triggering the same note while lingering on one key mid-swipe
+    // FIX: click sound is deferred briefly so a starting swipe can cancel it —
+    // otherwise every swipe gesture always played one plain click at its start.
+    private val pendingClickRunnables = mutableMapOf<Int, Runnable>()
+    private val clickSoundDelayMs = 40L
     private val popupPaint = Paint()
     private val popupBorderPaint = Paint()
     private val popupTextPaint = Paint()
@@ -792,6 +796,10 @@ class KeyboardView @JvmOverloads constructor(
                             // FIX: don't leave the starting key's preview bubble hanging
                             // once this is recognized as a swipe/drag rather than a tap.
                             pointerPopups.remove(primaryPointerId)?.release()
+                            // FIX: also cancel that key's pending click sound — a swipe
+                            // should only produce the continuous tune notes, never the
+                            // plain tap-click at its starting key.
+                            pendingClickRunnables.remove(primaryPointerId)?.let { handler.removeCallbacks(it) }
                         }
                         isSwiping = true
                     }
@@ -850,6 +858,7 @@ class KeyboardView @JvmOverloads constructor(
                 handler.removeCallbacks(capsLockRunnable ?: Runnable {})
                 for (pid in activePointers.keys.toList()) {
                     pointerPopups.remove(pid)?.release()
+                    pendingClickRunnables.remove(pid)?.let { handler.removeCallbacks(it) }
                 }
                 activePointers.clear()
                 capsLockJustActivated = false
@@ -882,6 +891,10 @@ class KeyboardView @JvmOverloads constructor(
     private fun commitPointerKey(pointerId: Int) {
         val label = activePointers.remove(pointerId)
         pointerPopups.remove(pointerId)?.release()
+        pendingClickRunnables.remove(pointerId)?.let {
+            handler.removeCallbacks(it)
+            if (settings.soundEnabled) soundEngine.playClick() // fire immediately — confirmed a real tap, not a swipe
+        }
         if (label != null) {
             val now = System.currentTimeMillis()
             val skipDueToCapsLock = label == "Shift" && capsLockJustActivated
@@ -903,7 +916,14 @@ class KeyboardView @JvmOverloads constructor(
                     triggerKeyHaptic()
                 }
                 if (settings.soundEnabled) {
-                    soundEngine.playClick()
+                    // FIX: was playing instantly on touch-down, so the very start
+                    // of every swipe gesture always fired one plain key-click
+                    // before the swipe tune took over. Deferring it briefly lets
+                    // ACTION_MOVE cancel it the moment a swipe is detected.
+                    pendingClickRunnables.remove(pointerId)?.let { handler.removeCallbacks(it) }
+                    val runnable = Runnable { soundEngine.playClick() }
+                    pendingClickRunnables[pointerId] = runnable
+                    handler.postDelayed(runnable, clickSoundDelayMs)
                 }
 
                 // FIX: Per-key radial color animation for ALL keys
