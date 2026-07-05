@@ -140,6 +140,13 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
+    // FIX: called by the IME every time the keyboard is shown, so a tune picked
+    // in the Tune screen takes effect on the next keystroke instead of silently
+    // waiting for the whole keyboard process to restart.
+    fun refreshSoundEngineTune() {
+        soundEngine.refreshTuneIfChanged()
+    }
+
     fun setOnCustomKeyListener(listener: OnKeyListener) {
         this.keyListener = listener
     }

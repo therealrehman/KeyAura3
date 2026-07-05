@@ -129,6 +129,9 @@ class AnimatedKeyboardIME : InputMethodService() {
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
         if (::keyboardView.isInitialized) {
+            keyboardView.refreshSoundEngineTune()
+        }
+        if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }
         if (::emojiPanelView.isInitialized && ::keyboardView.isInitialized) {

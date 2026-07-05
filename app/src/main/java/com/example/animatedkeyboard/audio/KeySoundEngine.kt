@@ -31,14 +31,16 @@ class KeySoundEngine(context: Context) {
     private var clickSoundId = 0
     private var isClickLoaded = false
 
-    private val noteResIds: IntArray
+    private var noteResIds: IntArray
     private val noteSoundIds: IntArray
     private val noteLoaded: BooleanArray
+    private var loadedTuneIndex: Int
 
     val noteCount: Int get() = noteResIds.size
 
     init {
         noteResIds = resIdsForTune(settings.selectedTuneIndex)
+        loadedTuneIndex = settings.selectedTuneIndex
         noteSoundIds = IntArray(noteResIds.size)
         noteLoaded = BooleanArray(noteResIds.size)
         try {
@@ -78,6 +80,33 @@ class KeySoundEngine(context: Context) {
             soundPool.play(noteSoundIds[idx], 1.0f, 1.0f, 1, 0, 1.0f)
         } catch (e: Exception) {
             Log.w(TAG, "Could not play swipe tone: ${e.message}")
+        }
+    }
+
+    /**
+     * Checks whether the user selected a different tune since this engine last
+     * loaded one, and if so, swaps in the new tune's notes. Needed because the
+     * IME process (and this engine, created once inside it) can stay alive in
+     * the background across many keyboard show/hide cycles — without this,
+     * a tune picked in the Tune screen would silently not take effect until
+     * the whole keyboard process happened to restart.
+     */
+    fun refreshTuneIfChanged() {
+        val current = settings.selectedTuneIndex
+        if (current == loadedTuneIndex) return
+        try {
+            for (id in noteSoundIds) {
+                if (id != 0) soundPool.unload(id)
+            }
+            val newResIds = resIdsForTune(current)
+            for (i in newResIds.indices) {
+                noteResIds[i] = newResIds[i]
+                noteLoaded[i] = false
+                noteSoundIds[i] = soundPool.load(appContext, newResIds[i], 1)
+            }
+            loadedTuneIndex = current
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not reload tune: ${e.message}")
         }
     }
 
