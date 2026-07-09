@@ -2,6 +2,8 @@ package com.example.animatedkeyboard.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 
 class KeyboardSettings private constructor(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("keyboard_settings", Context.MODE_PRIVATE)
@@ -91,6 +93,25 @@ class KeyboardSettings private constructor(context: Context) {
     var ninjaModeEnabled: Boolean
         get() = prefs.getBoolean("ninja_mode_enabled", false)
         set(value) = prefs.edit().putBoolean("ninja_mode_enabled", value).apply()
+
+    // FIX: Clipboard history storage — structured JSON list (id/type/content/
+    // pinned/timestamp) since a plain string list (like recentEmojis) can't
+    // carry the pin flag or distinguish text vs image entries.
+    fun getClipboardEntriesRaw(): List<JSONObject> {
+        val raw = prefs.getString("clipboard_entries", null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getJSONObject(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun setClipboardEntriesRaw(entries: List<JSONObject>) {
+        val arr = JSONArray()
+        for (e in entries) arr.put(e)
+        prefs.edit().putString("clipboard_entries", arr.toString()).apply()
+    }
 
     var animationEnabled: Boolean
         get() = prefs.getBoolean("animation", true)

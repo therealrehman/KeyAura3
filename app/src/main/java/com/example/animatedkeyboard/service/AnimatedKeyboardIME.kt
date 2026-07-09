@@ -1,11 +1,26 @@
 package com.example.animatedkeyboard.service
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.media.AudioManager
+import android.net.Uri
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
+import com.example.animatedkeyboard.clipboard.ClipboardEntry
+import com.example.animatedkeyboard.clipboard.ClipboardRepository
+import com.example.animatedkeyboard.ui.view.ClipboardPanelView
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
@@ -14,7 +29,16 @@ class AnimatedKeyboardIME : InputMethodService() {
     private lateinit var rootContainer: FrameLayout
     private lateinit var keyboardView: KeyboardView
     private lateinit var emojiPanelView: EmojiPanelView
+    private lateinit var clipboardPanelView: ClipboardPanelView
     private var currentInputEditorInfo: EditorInfo? = null
+
+    private val clipboardRepo by lazy { ClipboardRepository.getInstance(this) }
+    private var clipboardManager: ClipboardManager? = null
+    private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private var isFirstClipCallback = true // FIX: registering the listener fires once immediately with whatever's already on the clipboard — skip that first spurious callback
+
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
 
     // FIX: Force keyboard to stay at bottom, never fullscreen
     override fun onEvaluateFullscreenMode(): Boolean = false
@@ -22,18 +46,9 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onCreateInputView(): View {
         rootContainer = FrameLayout(this)
 
-        // FIX: Reverted the edge-to-edge/WindowInsets approach — InputMethodService
-        // windows don't reliably redeliver insets across every show/hide cycle on
-        // all devices (confirmed broken on a real device: correct on first open,
-        // then keys rendered underneath the nav bar on later opens). A solid
-        // color match is 100% reliable everywhere and still removes the visible
-        // gap — no window-flag/inset timing to depend on.
         window?.window?.let { w ->
             w.navigationBarColor = android.graphics.Color.BLACK
         }
-        // FIX: makes the phone's physical volume buttons control our key/swipe
-        // sounds — without this, pressing volume up/down while typing usually
-        // adjusts ringtone/notification volume instead, not the keyboard's sounds.
         window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
 
         keyboardView = KeyboardView(this)
@@ -44,19 +59,10 @@ class AnimatedKeyboardIME : InputMethodService() {
                 when (code) {
                     -1 -> {} // Shift handled in view
                     -5 -> {
-                        // FIX: deleteSurroundingText ignores any active selection and
-                        // always removes 1 char before the cursor — so Del did nothing
-                        // useful (or deleted the wrong thing) when text was selected via
-                        // "Select All". Clear the selection first if one exists.
                         val selected = ic.getSelectedText(0)
                         if (!selected.isNullOrEmpty()) {
                             ic.commitText("", 1)
                         } else {
-                            // FIX: most emoji are UTF-16 surrogate pairs (2 char units for
-                            // 1 visual emoji). Deleting only 1 unit leaves the other half
-                            // orphaned, which renders as a broken "?" box until Del is
-                            // pressed a second time. Delete both units together when the
-                            // text right before the cursor is a surrogate pair.
                             val beforeCursor = ic.getTextBeforeCursor(2, 0)
                             val deleteLength = if (beforeCursor != null && beforeCursor.length == 2 &&
                                 Character.isSurrogatePair(beforeCursor[0], beforeCursor[1])
@@ -65,7 +71,9 @@ class AnimatedKeyboardIME : InputMethodService() {
                         }
                     }
                     -4 -> handleSmartEnter()
-                    -9 -> showEmojiPanel() // FIX: emoji key (replaces old Settings key)
+                    -9 -> showEmojiPanel()
+                    -10 -> showClipboardPanel() // FIX: Clipboard key
+                    -11 -> toggleSpeechRecognition() // FIX: Mic key
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)
@@ -85,44 +93,179 @@ class AnimatedKeyboardIME : InputMethodService() {
         })
         emojiPanelView.visibility = View.GONE
 
-        rootContainer.addView(
-            keyboardView,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        )
-        rootContainer.addView(
-            emojiPanelView,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        )
+        clipboardPanelView = ClipboardPanelView(this)
+        clipboardPanelView.setOnClipboardPanelListener(object : ClipboardPanelView.OnClipboardPanelListener {
+            override fun onClipSelected(entry: ClipboardEntry) {
+                pasteClip(entry)
+                showKeyboard()
+            }
+            override fun onBackToKeyboard() {
+                showKeyboard()
+            }
+        })
+        clipboardPanelView.visibility = View.GONE
+
+        rootContainer.addView(keyboardView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        rootContainer.addView(emojiPanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        rootContainer.addView(clipboardPanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        registerClipboardListener()
         return rootContainer
     }
 
-    // FIX: Swaps the visible child within the same input view instead of
-    // recreating onCreateInputView — instant, no flicker, and each view keeps
-    // its own state (keyboard layout/shift state, emoji scroll/search text).
+    // FIX: watches the system clipboard the whole time the IME process is alive
+    // (not just while a panel is open) so a copy made in another app is already
+    // waiting — as a quick-paste suggestion and in the Clipboard panel — by the
+    // time the user switches back to type.
+    private fun registerClipboardListener() {
+        if (clipListener != null) return
+        clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val listener = ClipboardManager.OnPrimaryClipChangedListener {
+            if (isFirstClipCallback) {
+                isFirstClipCallback = false
+                return@OnPrimaryClipChangedListener
+            }
+            onSystemClipChanged()
+        }
+        clipListener = listener
+        clipboardManager?.addPrimaryClipChangedListener(listener)
+    }
+
+    private fun onSystemClipChanged() {
+        val clip = clipboardManager?.primaryClip ?: return
+        if (clip.itemCount == 0) return
+        val item = clip.getItemAt(0)
+        val description = clip.description
+
+        val isImage = description.hasMimeType("image/*") && item.uri != null
+        if (isImage) {
+            item.uri?.let { uri ->
+                clipboardRepo.addImage(uri, contentResolver)
+            }
+        } else {
+            val text = item.coerceToText(this)?.toString()
+            if (!text.isNullOrBlank()) {
+                clipboardRepo.addText(text)
+                if (::keyboardView.isInitialized) {
+                    keyboardView.showClipboardSuggestion(text)
+                }
+            }
+        }
+    }
+
+    private fun pasteClip(entry: ClipboardEntry) {
+        val ic = currentInputConnection ?: return
+        if (entry.type == "image") {
+            try {
+                val uri = Uri.fromFile(java.io.File(entry.content))
+                val editorInfo = currentInputEditorInfo
+                val mimeTypes = editorInfo?.contentMimeTypes
+                val mimeType = mimeTypes?.firstOrNull { it.startsWith("image/") } ?: "image/png"
+                val contentInfo = InputContentInfoCompat(uri, android.content.ClipDescription("clip image", arrayOf(mimeType)), null)
+                InputConnectionCompat.commitContent(ic, editorInfo ?: EditorInfo(), contentInfo, 0, null)
+            } catch (e: Exception) {
+                // Target field doesn't support rich content — nothing we can do about that here.
+            }
+        } else {
+            ic.commitText(entry.content, 1)
+        }
+    }
+
+    // FIX: checks RECORD_AUDIO permission first — an IME (Service) can't show
+    // the system permission dialog itself, so it hands off to a tiny transparent
+    // Activity that can. First tap after install just grants permission; the
+    // user taps the mic again to actually start listening (kept simple/robust
+    // rather than trying to auto-resume listening across the Service/Activity boundary).
+    private fun toggleSpeechRecognition() {
+        if (isListening) {
+            stopSpeechRecognition()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            val intent = Intent(this, com.example.animatedkeyboard.SpeechPermissionActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            return
+        }
+        startSpeechRecognition()
+    }
+
+    private fun startSpeechRecognition() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        val recognizer = speechRecognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also { speechRecognizer = it }
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                isListening = false
+                if (::keyboardView.isInitialized) keyboardView.setListeningState(false)
+            }
+            override fun onError(error: Int) {
+                isListening = false
+                if (::keyboardView.isInitialized) keyboardView.setListeningState(false)
+            }
+            override fun onResults(results: Bundle?) {
+                isListening = false
+                if (::keyboardView.isInitialized) keyboardView.setListeningState(false)
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = matches?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    currentInputConnection?.commitText("$text ", 1)
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+        }
+        try {
+            recognizer.startListening(intent)
+            isListening = true
+            if (::keyboardView.isInitialized) keyboardView.setListeningState(true)
+        } catch (e: Exception) {
+            isListening = false
+        }
+    }
+
+    private fun stopSpeechRecognition() {
+        speechRecognizer?.stopListening()
+        isListening = false
+        if (::keyboardView.isInitialized) keyboardView.setListeningState(false)
+    }
+
     private fun showEmojiPanel() {
         keyboardView.visibility = View.GONE
+        clipboardPanelView.visibility = View.GONE
         emojiPanelView.visibility = View.VISIBLE
         emojiPanelView.onPanelShown()
+    }
+
+    private fun showClipboardPanel() {
+        keyboardView.visibility = View.GONE
+        emojiPanelView.visibility = View.GONE
+        clipboardPanelView.visibility = View.VISIBLE
+        clipboardPanelView.onPanelShown()
     }
 
     private fun showKeyboard() {
         emojiPanelView.clearSearchFocus()
         emojiPanelView.visibility = View.GONE
+        clipboardPanelView.visibility = View.GONE
         keyboardView.visibility = View.VISIBLE
     }
 
-    // FIX: Store EditorInfo for Smart Enter functionality
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         currentInputEditorInfo = attribute
     }
 
-    // FIX: Runs after the input view actually exists, so this is the reliable place
-    // to tell KeyboardView which action the Return key should show/perform this time.
-    // Also resets to the letter keyboard on every fresh field focus, matching how
-    // system keyboards never reopen mid-conversation on the emoji tray. Re-applies
-    // the nav bar color every show too, since some OEM launchers reset window flags
-    // between app switches.
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
@@ -130,8 +273,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
         if (::keyboardView.isInitialized) {
             keyboardView.refreshSoundEngineTune()
-        }
-        if (::keyboardView.isInitialized) {
             keyboardView.setImeAction(resolveEditorAction(info))
         }
         if (::emojiPanelView.isInitialized && ::keyboardView.isInitialized) {
@@ -152,13 +293,10 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (::keyboardView.isInitialized) {
             keyboardView.release()
         }
+        clipListener?.let { clipboardManager?.removePrimaryClipChangedListener(it) }
+        speechRecognizer?.destroy()
     }
 
-    // FIX: The old code checked EditorInfo.actionId first via ?:, but actionId is a
-    // plain (non-null) Int that defaults to 0 for every normal app — it's only set
-    // when an app defines a custom actionLabel. Since 0 isn't null, the Elvis operator
-    // never fell through to check imeOptions, so real Search/Send/Go/Done requests
-    // (which live in imeOptions, not actionId) were always ignored.
     private fun resolveEditorAction(info: EditorInfo?): Int {
         val imeOptions = info?.imeOptions ?: EditorInfo.IME_ACTION_UNSPECIFIED
         val noEnterAction = (imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
@@ -166,9 +304,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         return imeOptions and EditorInfo.IME_MASK_ACTION
     }
 
-    // FIX: Smart Enter - performs Search/Send/Go/Done/Next/Previous when the field
-    // asks for one (e.g. Google search box, chat send box); otherwise inserts a real
-    // newline, same as a normal text field or notes app.
     private fun handleSmartEnter() {
         val ic = currentInputConnection ?: return
         val action = resolveEditorAction(currentInputEditorInfo)

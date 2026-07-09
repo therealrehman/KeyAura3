@@ -42,6 +42,27 @@ class KeyboardView @JvmOverloads constructor(
     private val soundEngine by lazy { KeySoundEngine(context) }
     private val urduRepo by lazy { UrduSuggestionRepository.getInstance(context) }
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
+    private val clipboardRepo by lazy { com.example.animatedkeyboard.clipboard.ClipboardRepository.getInstance(context) }
+
+    // FIX: a just-copied clip shown as a one-tap paste suggestion in the strip,
+    // taking over the chip area until tapped or until normal typing resumes.
+    private var pendingClipboardSuggestion: String? = null
+
+    /** Called by the IME when a new item is copied system-wide, while the keyboard is showing. */
+    fun showClipboardSuggestion(text: String) {
+        pendingClipboardSuggestion = text
+        createKeyMap(width, height)
+    }
+
+    // FIX: Mic key highlights while speech recognition is actively listening.
+    private var isListeningForSpeech = false
+
+    fun setListeningState(listening: Boolean) {
+        if (isListeningForSpeech != listening) {
+            isListeningForSpeech = listening
+            postInvalidateOnAnimation()
+        }
+    }
 
     // FIX: direct Vibrator control instead of performHapticFeedback(KEYBOARD_TAP)
     // — the latter's duration/strength is decided by the device's own haptic
@@ -383,17 +404,41 @@ class KeyboardView @JvmOverloads constructor(
         val stripTop = dp(2f).toInt()
         val stripBottom = stripHeightPx - dp(2f).toInt()
 
-        val urduKeyWidth = dp(56f).toInt()
+        // FIX: Urdu key shrunk to half its previous width (56dp -> 28dp) to make
+        // room for the new Clipboard icon right beside it, per spec.
+        val urduKeyWidth = dp(28f).toInt()
         val urduRight = sideMargin + urduKeyWidth
         keyMap["Urdu"] = Rect(sideMargin, stripTop, urduRight, stripBottom)
         keyStates.putIfAbsent("Urdu", KeyState.NORMAL)
 
+        val clipboardKeyWidth = dp(28f).toInt()
+        val clipboardLeft = urduRight + hGap
+        val clipboardRight = clipboardLeft + clipboardKeyWidth
+        keyMap["Clipboard"] = Rect(clipboardLeft, stripTop, clipboardRight, stripBottom)
+        keyStates.putIfAbsent("Clipboard", KeyState.NORMAL)
+
+        // FIX: Mic docked at the strip's right border, always visible.
+        val micKeyWidth = dp(32f).toInt()
+        val micLeft = width - sideMargin - micKeyWidth
+        keyMap["Mic"] = Rect(micLeft, stripTop, width - sideMargin, stripBottom)
+        keyStates.putIfAbsent("Mic", KeyState.NORMAL)
+
+        // FIX: a just-copied clip takes over the chip area as a single quick-
+        // paste suggestion; tapping it (or resuming normal typing) reverts to
+        // regular Urdu/English suggestions.
+        val chipsLeft = clipboardRight + hGap
+        val chipsAvailableWidth = micLeft - hGap - chipsLeft
+        if (chipsAvailableWidth <= 0) return
+
+        val clipSuggestion = pendingClipboardSuggestion
+        if (clipSuggestion != null) {
+            keyMap["clipSugg"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
+            keyStates.putIfAbsent("clipSugg", KeyState.NORMAL)
+            return
+        }
+
         val suggestions = currentSuggestions
         if (suggestions.isEmpty()) return
-
-        val chipsLeft = urduRight + hGap
-        val chipsAvailableWidth = (width - sideMargin) - chipsLeft
-        if (chipsAvailableWidth <= 0) return
         val chipWidth = (chipsAvailableWidth - hGap * (suggestions.size - 1)) / suggestions.size
         var x = chipsLeft
         for (i in suggestions.indices) {
@@ -530,6 +575,9 @@ class KeyboardView @JvmOverloads constructor(
                 if (label == "Urdu" && settings.urduEnabled) {
                     keyPaint.color = Color.parseColor("#2255CC")
                     textPaint.color = Color.WHITE
+                } else if (label == "Mic" && isListeningForSpeech) {
+                    keyPaint.color = Color.parseColor("#CC2244")
+                    textPaint.color = Color.WHITE
                 } else if (label.startsWith("sugg")) {
                     keyPaint.color = Color.parseColor("#151515")
                     textPaint.color = Color.WHITE
@@ -562,10 +610,15 @@ class KeyboardView @JvmOverloads constructor(
             "Emoji" -> drawEmojiGlyph(canvas, rect)
             "Go" -> drawEnterIcon(canvas, rect, textPaint.color) // FIX: icon reflects Search/Send/Go/Done/Next
             "Urdu" -> {
-                val p = Paint(textPaint).apply { textSize = dp(13f) }
+                // FIX: text size reduced to fit the key's new half-width.
+                val p = Paint(textPaint).apply { textSize = dp(10f) }
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
-            else -> if (label.startsWith("sugg")) {
+            "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
+            "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
+            else -> if (label == "clipSugg") {
+                drawFittedChipText(canvas, pendingClipboardSuggestion ?: "", rect)
+            } else if (label.startsWith("sugg")) {
                 // FIX: suggestion chips show the actual candidate text, not the raw
                 // "sugg0" label. Previously drawn at a fixed size with no width
                 // check, so longer words overflowed their chip and visually
@@ -578,6 +631,31 @@ class KeyboardView @JvmOverloads constructor(
                 canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
             }
         }
+    }
+
+    private fun drawClipboardIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeJoin = Paint.Join.ROUND }
+        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
+        val w = dp(12f); val h = dp(15f)
+        val bodyRect = android.graphics.RectF(cx - w / 2, cy - h / 2 + dp(1.5f), cx + w / 2, cy + h / 2)
+        canvas.drawRoundRect(bodyRect, dp(2f), dp(2f), p)
+        val clipW = dp(5f)
+        val clipRect = android.graphics.RectF(cx - clipW / 2, cy - h / 2 - dp(1.5f), cx + clipW / 2, cy - h / 2 + dp(2f))
+        canvas.drawRoundRect(clipRect, dp(1f), dp(1f), p)
+    }
+
+    private fun drawMicIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
+        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
+        val capsuleW = dp(6f); val capsuleH = dp(10f)
+        val capsuleRect = android.graphics.RectF(cx - capsuleW / 2, cy - capsuleH / 2 - dp(2f), cx + capsuleW / 2, cy + capsuleH / 2 - dp(2f))
+        val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
+        canvas.drawRoundRect(capsuleRect, capsuleW / 2, capsuleW / 2, fillPaint)
+        val archTop = cy + capsuleH / 2 - dp(2f) - dp(2f)
+        val archRect = android.graphics.RectF(cx - dp(6f), archTop - dp(4f), cx + dp(6f), archTop + dp(6f))
+        canvas.drawArc(archRect, 20f, 140f, false, p)
+        canvas.drawLine(cx, archTop + dp(4f), cx, cy + capsuleH / 2 + dp(3f), p)
+        canvas.drawLine(cx - dp(3.5f), cy + capsuleH / 2 + dp(3f), cx + dp(3.5f), cy + capsuleH / 2 + dp(3f), p)
     }
 
     private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
@@ -1122,7 +1200,27 @@ class KeyboardView @JvmOverloads constructor(
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
+            "Clipboard" -> {
+                finalizeRomanBuffer()
+                keyListener?.onKey(-10, "Clipboard")
+            }
+            "Mic" -> {
+                finalizeRomanBuffer()
+                keyListener?.onKey(-11, "Mic")
+            }
             else -> {
+                // FIX: tapping the just-copied clip suggestion pastes it directly
+                // and reverts the strip back to normal Urdu/English suggestions.
+                if (label == "clipSugg") {
+                    val text = pendingClipboardSuggestion
+                    if (text != null) {
+                        keyListener?.onKey(text.hashCode(), text)
+                    }
+                    pendingClipboardSuggestion = null
+                    createKeyMap(width, height)
+                    return
+                }
+
                 // FIX: suggestion chip tapped — commit that Urdu word directly.
                 if (label.startsWith("sugg")) {
                     val index = label.removePrefix("sugg").toIntOrNull()
