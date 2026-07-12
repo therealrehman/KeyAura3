@@ -417,6 +417,13 @@ class KeyboardView @JvmOverloads constructor(
         keyMap["Clipboard"] = Rect(clipboardLeft, stripTop, clipboardRight, stripBottom)
         keyStates.putIfAbsent("Clipboard", KeyState.NORMAL)
 
+        // FIX: Game icon right beside Clipboard, opening the Birdy Bird panel.
+        val gameKeyWidth = dp(28f).toInt()
+        val gameLeft = clipboardRight + hGap
+        val gameRight = gameLeft + gameKeyWidth
+        keyMap["Game"] = Rect(gameLeft, stripTop, gameRight, stripBottom)
+        keyStates.putIfAbsent("Game", KeyState.NORMAL)
+
         // FIX: Mic docked at the strip's right border, always visible.
         val micKeyWidth = dp(32f).toInt()
         val micLeft = width - sideMargin - micKeyWidth
@@ -426,7 +433,7 @@ class KeyboardView @JvmOverloads constructor(
         // FIX: a just-copied clip takes over the chip area as a single quick-
         // paste suggestion; tapping it (or resuming normal typing) reverts to
         // regular Urdu/English suggestions.
-        val chipsLeft = clipboardRight + hGap
+        val chipsLeft = gameRight + hGap
         val chipsAvailableWidth = micLeft - hGap - chipsLeft
         if (chipsAvailableWidth <= 0) return
 
@@ -615,6 +622,7 @@ class KeyboardView @JvmOverloads constructor(
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
+            "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
             else -> if (label == "clipSugg") {
                 drawFittedChipText(canvas, pendingClipboardSuggestion ?: "", rect)
@@ -642,6 +650,26 @@ class KeyboardView @JvmOverloads constructor(
         val clipW = dp(5f)
         val clipRect = android.graphics.RectF(cx - clipW / 2, cy - h / 2 - dp(1.5f), cx + clipW / 2, cy - h / 2 + dp(2f))
         canvas.drawRoundRect(clipRect, dp(1f), dp(1f), p)
+    }
+
+    // FIX: small bird glyph for the Game key — round body + wing + beak,
+    // matching the outline style of the Clipboard/Mic icons.
+    private fun drawGameIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
+        val r = dp(6f)
+        val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
+        canvas.drawCircle(cx - dp(1f), cy, r, fillPaint)
+        val beak = android.graphics.Path()
+        beak.moveTo(cx + r - dp(1f), cy - dp(1.5f))
+        beak.lineTo(cx + r + dp(4f), cy)
+        beak.lineTo(cx + r - dp(1f), cy + dp(1.5f))
+        beak.close()
+        canvas.drawPath(beak, fillPaint)
+        val strokePaint = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.4f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
+        val wing = android.graphics.Path()
+        wing.moveTo(cx - r, cy)
+        wing.quadTo(cx - dp(2f), cy - dp(4f), cx + dp(1f), cy - dp(1f))
+        canvas.drawPath(wing, strokePaint)
     }
 
     private fun drawMicIcon(canvas: Canvas, rect: Rect, color: Int) {
@@ -1203,6 +1231,10 @@ class KeyboardView @JvmOverloads constructor(
             "Clipboard" -> {
                 finalizeRomanBuffer()
                 keyListener?.onKey(-10, "Clipboard")
+            }
+            "Game" -> {
+                finalizeRomanBuffer()
+                keyListener?.onKey(-14, "Game")
             }
             "Mic" -> {
                 finalizeRomanBuffer()

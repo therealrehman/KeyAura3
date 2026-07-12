@@ -22,6 +22,7 @@ import com.example.animatedkeyboard.clipboard.ClipboardEntry
 import com.example.animatedkeyboard.clipboard.ClipboardRepository
 import com.example.animatedkeyboard.ui.view.ClipboardPanelView
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
+import com.example.animatedkeyboard.ui.view.GamePanelView
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
 class AnimatedKeyboardIME : InputMethodService() {
@@ -30,6 +31,7 @@ class AnimatedKeyboardIME : InputMethodService() {
     private lateinit var keyboardView: KeyboardView
     private lateinit var emojiPanelView: EmojiPanelView
     private lateinit var clipboardPanelView: ClipboardPanelView
+    private lateinit var gamePanelView: GamePanelView
     private var currentInputEditorInfo: EditorInfo? = null
 
     private val clipboardRepo by lazy { ClipboardRepository.getInstance(this) }
@@ -74,6 +76,7 @@ class AnimatedKeyboardIME : InputMethodService() {
                     -9 -> showEmojiPanel()
                     -10 -> showClipboardPanel() // FIX: Clipboard key
                     -11 -> toggleSpeechRecognition() // FIX: Mic key
+                    -14 -> showGamePanel() // FIX: Game key
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)
@@ -105,9 +108,18 @@ class AnimatedKeyboardIME : InputMethodService() {
         })
         clipboardPanelView.visibility = View.GONE
 
+        gamePanelView = GamePanelView(this)
+        gamePanelView.setOnGamePanelListener(object : GamePanelView.OnGamePanelListener {
+            override fun onBackToKeyboard() {
+                showKeyboard()
+            }
+        })
+        gamePanelView.visibility = View.GONE
+
         rootContainer.addView(keyboardView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         rootContainer.addView(emojiPanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         rootContainer.addView(clipboardPanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        rootContainer.addView(gamePanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         registerClipboardListener()
         return rootContainer
@@ -243,6 +255,8 @@ class AnimatedKeyboardIME : InputMethodService() {
     private fun showEmojiPanel() {
         keyboardView.visibility = View.GONE
         clipboardPanelView.visibility = View.GONE
+        gamePanelView.visibility = View.GONE
+        gamePanelView.onPanelHidden()
         emojiPanelView.visibility = View.VISIBLE
         emojiPanelView.onPanelShown()
     }
@@ -250,14 +264,26 @@ class AnimatedKeyboardIME : InputMethodService() {
     private fun showClipboardPanel() {
         keyboardView.visibility = View.GONE
         emojiPanelView.visibility = View.GONE
+        gamePanelView.visibility = View.GONE
+        gamePanelView.onPanelHidden()
         clipboardPanelView.visibility = View.VISIBLE
         clipboardPanelView.onPanelShown()
+    }
+
+    private fun showGamePanel() {
+        keyboardView.visibility = View.GONE
+        emojiPanelView.visibility = View.GONE
+        clipboardPanelView.visibility = View.GONE
+        gamePanelView.visibility = View.VISIBLE
+        gamePanelView.onPanelShown()
     }
 
     private fun showKeyboard() {
         emojiPanelView.clearSearchFocus()
         emojiPanelView.visibility = View.GONE
         clipboardPanelView.visibility = View.GONE
+        gamePanelView.visibility = View.GONE
+        gamePanelView.onPanelHidden()
         keyboardView.visibility = View.VISIBLE
     }
 

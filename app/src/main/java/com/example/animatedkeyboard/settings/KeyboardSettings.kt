@@ -113,6 +113,11 @@ class KeyboardSettings private constructor(context: Context) {
         prefs.edit().putString("clipboard_entries", arr.toString()).apply()
     }
 
+    // Birdy Bird high score
+    var birdyBirdHighScore: Int
+        get() = prefs.getInt("birdy_bird_high_score", 0)
+        set(value) = prefs.edit().putInt("birdy_bird_high_score", value).apply()
+
     var animationEnabled: Boolean
         get() = prefs.getBoolean("animation", true)
         set(value) = prefs.edit().putBoolean("animation", value).apply()
