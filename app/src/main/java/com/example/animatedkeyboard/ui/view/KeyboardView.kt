@@ -74,6 +74,7 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun triggerKeyHaptic() {
         val v = vibrator ?: return
+        if (!v.hasVibrator()) return
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 v.vibrate(

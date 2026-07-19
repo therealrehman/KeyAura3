@@ -56,5 +56,18 @@
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
+        <!-- FIX: needed so clipboard image paste can share a content:// URI that
+             other apps (WhatsApp etc.) are actually allowed to read — a raw
+             file:// path into our private storage is blocked on API 24+. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 </manifest>

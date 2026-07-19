@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.media.AudioManager
-import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -169,14 +168,25 @@ class AnimatedKeyboardIME : InputMethodService() {
         val ic = currentInputConnection ?: return
         if (entry.type == "image") {
             try {
-                val uri = Uri.fromFile(java.io.File(entry.content))
+                // FIX: a raw file:// URI into our private storage can't be read by
+                // any other app on API 24+ — FileProvider issues a content:// URI
+                // the receiving app can actually open, and the GRANT_READ flag
+                // gives it temporary read access to that specific file.
+                val file = java.io.File(entry.content)
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, "$packageName.fileprovider", file
+                )
                 val editorInfo = currentInputEditorInfo
                 val mimeTypes = editorInfo?.contentMimeTypes
                 val mimeType = mimeTypes?.firstOrNull { it.startsWith("image/") } ?: "image/png"
                 val contentInfo = InputContentInfoCompat(uri, android.content.ClipDescription("clip image", arrayOf(mimeType)), null)
-                InputConnectionCompat.commitContent(ic, editorInfo ?: EditorInfo(), contentInfo, 0, null)
+                InputConnectionCompat.commitContent(
+                    ic, editorInfo ?: EditorInfo(), contentInfo,
+                    InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null
+                )
             } catch (e: Exception) {
-                // Target field doesn't support rich content — nothing we can do about that here.
+                // Some apps' text fields simply don't support rich content commit at
+                // all (an Android platform limitation, not something an IME can force).
             }
         } else {
             ic.commitText(entry.content, 1)
@@ -197,7 +207,7 @@ class AnimatedKeyboardIME : InputMethodService() {
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (!granted) {
             val intent = Intent(this, com.example.animatedkeyboard.SpeechPermissionActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             startActivity(intent)
             return
         }
@@ -296,7 +306,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
-        window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
         if (::keyboardView.isInitialized) {
             keyboardView.refreshSoundEngineTune()
             keyboardView.setImeAction(resolveEditorAction(info))

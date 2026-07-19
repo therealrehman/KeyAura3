@@ -19,6 +19,7 @@ class SpeechPermissionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        suppressTransitionAnimation()
 
         val alreadyGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
@@ -37,6 +38,16 @@ class SpeechPermissionActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         }
         finish()
+    }
+
+    override fun finish() {
+        super.finish()
+        suppressTransitionAnimation()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun suppressTransitionAnimation() {
+        overridePendingTransition(0, 0)
     }
 
     companion object {
