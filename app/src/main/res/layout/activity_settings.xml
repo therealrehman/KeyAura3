@@ -31,7 +31,6 @@
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp" />
 
-        <!-- About -->
         <androidx.cardview.widget.CardView
             android:id="@+id/btnAbout"
             android:layout_width="match_parent"
@@ -43,14 +42,12 @@
             android:clickable="true"
             android:focusable="true"
             android:foreground="?attr/selectableItemBackground">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -58,7 +55,6 @@
                     android:text="@string/about_title"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
@@ -67,7 +63,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Contact Us -->
         <androidx.cardview.widget.CardView
             android:id="@+id/btnContactUs"
             android:layout_width="match_parent"
@@ -79,14 +74,12 @@
             android:clickable="true"
             android:focusable="true"
             android:foreground="?attr/selectableItemBackground">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -94,7 +87,6 @@
                     android:text="@string/contact_us"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
@@ -103,7 +95,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Privacy Policy -->
         <androidx.cardview.widget.CardView
             android:id="@+id/btnPrivacyPolicy"
             android:layout_width="match_parent"
@@ -115,14 +106,12 @@
             android:clickable="true"
             android:focusable="true"
             android:foreground="?attr/selectableItemBackground">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -130,7 +119,6 @@
                     android:text="@string/privacy_policy"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
@@ -139,7 +127,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- App Version -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -147,14 +134,12 @@
             app:cardCornerRadius="16dp"
             app:cardBackgroundColor="#1A1A3A"
             app:cardElevation="4dp">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -162,7 +147,6 @@
                     android:text="@string/app_version"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <TextView
                     android:id="@+id/tvVersion"
                     android:layout_width="wrap_content"
@@ -173,7 +157,175 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Themes Section -->
+        <!-- Typing Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Typing"
+            android:textSize="14sp"
+            android:textColor="#8888CC"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Gesture Typing -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/gesture_typing"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchGestureTyping"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Text Expansion -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/text_expansion"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchTextExpansion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Cursor Swipe -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/cursor_swipe"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchCursorSwipe"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Appearance Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Appearance"
+            android:textSize="14sp"
+            android:textColor="#8888CC"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Number Row -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/number_row"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchNumberRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Keyboard Height -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/keyboard_height"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF" />
+                <SeekBar
+                    android:id="@+id/seekBarHeight"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="20"
+                    android:progress="5" />
+                <TextView
+                    android:id="@+id/tvHeightValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="35%"
+                    android:textSize="14sp"
+                    android:textColor="#8888AA"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Themes -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -183,7 +335,6 @@
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp" />
 
-        <!-- Master Animation (Free) -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -191,14 +342,12 @@
             app:cardCornerRadius="16dp"
             app:cardBackgroundColor="#1A1A3A"
             app:cardElevation="4dp">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -206,7 +355,6 @@
                     android:text="@string/master_animation"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -226,14 +374,12 @@
             app:cardBackgroundColor="#1A1A3A"
             app:cardElevation="4dp"
             android:alpha="0.6">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -241,7 +387,6 @@
                     android:text="Neon Pulse"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -259,14 +404,12 @@
             app:cardBackgroundColor="#1A1A3A"
             app:cardElevation="4dp"
             android:alpha="0.6">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -274,7 +417,6 @@
                     android:text="Ocean Waves"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -292,14 +434,12 @@
             app:cardBackgroundColor="#1A1A3A"
             app:cardElevation="4dp"
             android:alpha="0.6">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp"
                 android:gravity="center_vertical">
-
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -307,7 +447,6 @@
                     android:text="Firestorm"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

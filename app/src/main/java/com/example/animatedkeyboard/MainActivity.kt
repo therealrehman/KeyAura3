@@ -39,12 +39,10 @@ class MainActivity : AppCompatActivity() {
             imm.showInputMethodPicker()
         }
 
-        // Settings button opens the new SettingsActivity
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // Menu button now opens Settings as well
         btnMenu.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }

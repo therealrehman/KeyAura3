@@ -28,6 +28,23 @@
     <string name="free">Free</string>
     <string name="coming_soon">Coming Soon</string>
 
+    <!-- Advanced Settings -->
+    <string name="gesture_typing">Gesture Typing</string>
+    <string name="gesture_typing_desc">Swipe across keys to type</string>
+    <string name="number_row">Number Row</string>
+    <string name="number_row_desc">Show numbers above the keyboard</string>
+    <string name="keyboard_height">Keyboard Height</string>
+    <string name="keyboard_height_desc">Adjust height of the keyboard</string>
+    <string name="text_expansion">Text Expansion</string>
+    <string name="text_expansion_desc">Expand shortcuts into full phrases</string>
+    <string name="cursor_swipe">Cursor Swipe</string>
+    <string name="cursor_swipe_desc">Swipe on spacebar to move cursor</string>
+    <string name="shortcuts">Shortcuts</string>
+    <string name="add_shortcut">Add Shortcut</string>
+    <string name="shortcut_label">Shortcut</string>
+    <string name="expansion_label">Expansion</string>
+    <string name="delete">Delete</string>
+
     <!-- About -->
     <string name="about_content">KeyAura is a professional Android custom keyboard featuring stunning radial color animations, Roman Urdu to Urdu transliteration, and a sleek dark UI designed for the ultimate typing experience.\n\nBuilt with passion for users who want both style and functionality in their daily typing.\n\nFeatures:\n• Multi-color radial animations\n• Roman Urdu to Urdu typing\n• Smart Enter key\n• Auto-return to letters\n• Customizable settings\n• Landscape support\n\nDeveloped by OKLabs</string>
 
