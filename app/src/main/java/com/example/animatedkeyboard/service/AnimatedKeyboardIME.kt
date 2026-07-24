@@ -36,12 +36,11 @@ class AnimatedKeyboardIME : InputMethodService() {
     private val clipboardRepo by lazy { ClipboardRepository.getInstance(this) }
     private var clipboardManager: ClipboardManager? = null
     private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private var isFirstClipCallback = true // FIX: registering the listener fires once immediately with whatever's already on the clipboard — skip that first spurious callback
+    private var isFirstClipCallback = true
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
 
-    // FIX: Force keyboard to stay at bottom, never fullscreen
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onCreateInputView(): View {
@@ -58,7 +57,7 @@ class AnimatedKeyboardIME : InputMethodService() {
             override fun onKey(code: Int, label: String) {
                 val ic = currentInputConnection ?: return
                 when (code) {
-                    -1 -> {} // Shift handled in view
+                    -1 -> {}
                     -5 -> {
                         val selected = ic.getSelectedText(0)
                         if (!selected.isNullOrEmpty()) {
@@ -73,9 +72,9 @@ class AnimatedKeyboardIME : InputMethodService() {
                     }
                     -4 -> handleSmartEnter()
                     -9 -> showEmojiPanel()
-                    -10 -> showClipboardPanel() // FIX: Clipboard key
-                    -11 -> toggleSpeechRecognition() // FIX: Mic key
-                    -14 -> showGamePanel() // FIX: Game key
+                    -10 -> showClipboardPanel()
+                    -11 -> toggleSpeechRecognition()
+                    -14 -> showGamePanel()
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)
@@ -124,10 +123,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         return rootContainer
     }
 
-    // FIX: watches the system clipboard the whole time the IME process is alive
-    // (not just while a panel is open) so a copy made in another app is already
-    // waiting — as a quick-paste suggestion and in the Clipboard panel — by the
-    // time the user switches back to type.
     private fun registerClipboardListener() {
         if (clipListener != null) return
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -158,6 +153,7 @@ class AnimatedKeyboardIME : InputMethodService() {
             if (!text.isNullOrBlank()) {
                 clipboardRepo.addText(text)
                 if (::keyboardView.isInitialized) {
+                    // Pass full text; KeyboardView will truncate for display
                     keyboardView.showClipboardSuggestion(text)
                 }
             }
@@ -168,10 +164,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         val ic = currentInputConnection ?: return
         if (entry.type == "image") {
             try {
-                // FIX: a raw file:// URI into our private storage can't be read by
-                // any other app on API 24+ — FileProvider issues a content:// URI
-                // the receiving app can actually open, and the GRANT_READ flag
-                // gives it temporary read access to that specific file.
                 val file = java.io.File(entry.content)
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     this, "$packageName.fileprovider", file
@@ -184,20 +176,13 @@ class AnimatedKeyboardIME : InputMethodService() {
                     ic, editorInfo ?: EditorInfo(), contentInfo,
                     InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null
                 )
-            } catch (e: Exception) {
-                // Some apps' text fields simply don't support rich content commit at
-                // all (an Android platform limitation, not something an IME can force).
+            } catch (_: Exception) {
             }
         } else {
             ic.commitText(entry.content, 1)
         }
     }
 
-    // FIX: checks RECORD_AUDIO permission first — an IME (Service) can't show
-    // the system permission dialog itself, so it hands off to a tiny transparent
-    // Activity that can. First tap after install just grants permission; the
-    // user taps the mic again to actually start listening (kept simple/robust
-    // rather than trying to auto-resume listening across the Service/Activity boundary).
     private fun toggleSpeechRecognition() {
         if (isListening) {
             stopSpeechRecognition()
@@ -251,7 +236,7 @@ class AnimatedKeyboardIME : InputMethodService() {
             recognizer.startListening(intent)
             isListening = true
             if (::keyboardView.isInitialized) keyboardView.setListeningState(true)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             isListening = false
         }
     }

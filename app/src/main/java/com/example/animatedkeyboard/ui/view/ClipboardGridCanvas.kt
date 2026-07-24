@@ -58,7 +58,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private var scrollOffsetY = 0f
     private var maxScrollOffsetY = 0f
 
-    private val cardRects = mutableListOf<Triple<Rect, Rect, ClipboardEntry>>() // (cardRect, pinIconRect, entry)
+    private val cardRects = mutableListOf<Triple<Rect, Rect, ClipboardEntry>>()
     private var backButtonRect = Rect()
 
     private var pressedEntryId: String? = null
@@ -67,7 +67,13 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private var dragStartScrollOffset = 0f
     private val dragThreshold = dp(8f)
 
-    // Small in-memory bitmap cache so image thumbnails aren't re-decoded from disk every frame.
+    // Truncate text for display to avoid performance issues with huge texts
+    private fun getDisplayText(entry: ClipboardEntry): String {
+        if (entry.type != "text") return ""
+        val raw = entry.content
+        return if (raw.length > 200) raw.take(197) + "…" else raw
+    }
+
     private val bitmapCache = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean = size > 24
     }
@@ -90,9 +96,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
             val bmp = BitmapFactory.decodeFile(path, opts) ?: return null
             bitmapCache[path] = bmp
             bmp
-        } catch (e: Exception) {
-            null
-        }
+        } catch (_: Exception) { null }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -184,8 +188,10 @@ class ClipboardGridCanvas @JvmOverloads constructor(
                 canvas.drawText("[image]", contentLeft, cardRect.exactCenterY() + textPreviewPaint.textSize / 3f, textPreviewPaint)
             }
         } else {
+            // Use truncated text for display
+            val displayText = getDisplayText(entry)
             val available = (contentRight - contentLeft).toInt()
-            val truncated = truncateToWidth(entry.content.replace("\n", " "), textPreviewPaint, available)
+            val truncated = truncateToWidth(displayText.replace("\n", " "), textPreviewPaint, available)
             canvas.drawText(truncated, contentLeft, cardRect.exactCenterY() + textPreviewPaint.textSize / 3f, textPreviewPaint)
         }
 
