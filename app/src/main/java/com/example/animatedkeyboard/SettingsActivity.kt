@@ -12,7 +12,6 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        // Display app version
         val tvVersion = findViewById<TextView>(R.id.tvVersion)
         try {
             val pkgInfo = packageManager.getPackageInfo(packageName, 0)
