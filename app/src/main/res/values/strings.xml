@@ -2,23 +2,51 @@
 <resources>
     <string name="app_name">KeyAura</string>
     <string name="keyboard_name">KeyAura Keyboard</string>
+
+    <!-- Main Activity -->
     <string name="enable_keyboard">Enable Keyboard</string>
     <string name="enable_keyboard_desc">Enable KeyAura to start typing</string>
     <string name="choose_keyboard">Choose Keyboard</string>
     <string name="choose_keyboard_desc">Select KeyAura as your default keyboard</string>
-    <string name="about_title">About KeyAura</string>
-    <string name="about_content">KeyAura is a professional Android custom keyboard featuring stunning radial color animations on every key press, Roman Urdu to Urdu transliteration, and a sleek dark UI designed for the ultimate typing experience.
-
-Built with passion for users who want both style and functionality in their daily typing.
-
-Features:
-• Multi-color radial animations
-• Roman Urdu to Urdu typing
-• Smart Enter key
-• Auto-return to letters
-• Customizable settings
-• Landscape support
-
-Version 1.0.0</string>
     <string name="about">About</string>
+    <string name="settings">Settings</string>
+    <string name="tune">Tune</string>
+    <string name="tune_desc">Choose the swipe sound instrument</string>
+    <string name="ninja_mode">Ninja Fighting Mode</string>
+    <string name="on">ON</string>
+    <string name="off">OFF</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="general">General</string>
+    <string name="about_title">About KeyAura</string>
+    <string name="contact_us">Contact Us</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="app_version">App Version</string>
+    <string name="themes">Themes</string>
+    <string name="master_animation">Master Animation</string>
+    <string name="free">Free</string>
+    <string name="coming_soon">Coming Soon</string>
+
+    <!-- About -->
+    <string name="about_content">KeyAura is a professional Android custom keyboard featuring stunning radial color animations, Roman Urdu to Urdu transliteration, and a sleek dark UI designed for the ultimate typing experience.\n\nBuilt with passion for users who want both style and functionality in their daily typing.\n\nFeatures:\n• Multi-color radial animations\n• Roman Urdu to Urdu typing\n• Smart Enter key\n• Auto-return to letters\n• Customizable settings\n• Landscape support\n\nDeveloped by OKLabs</string>
+
+    <!-- Contact Us -->
+    <string name="contact_us_title">Contact Us</string>
+    <string name="contact_us_desc">We\'d love to hear from you! Reach out to us via email or social media.</string>
+    <string name="email">Email</string>
+    <string name="email_address">a.rehmanmazher11@gmail.com</string>
+    <string name="send_email">Send Email</string>
+
+    <!-- Privacy Policy -->
+    <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="privacy_policy_content">Last updated: July 2026\n\nOKLabs (\"we\", \"our\", \"us\") respects your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use KeyAura.\n\n1. Information We Collect\n- Keyboard input: We do not store or transmit any text you type. All processing happens locally on your device.\n- Usage data: We may collect anonymous usage statistics to improve the app, but only if you opt in.\n- No personal information is collected without your explicit consent.\n\n2. Permissions\n- RECORD_AUDIO: Used only for speech-to-text functionality. Audio is processed locally and never stored.\n- VIBRATE: Used for haptic feedback.\n- INTERNET: Used for displaying ads (future) and downloading resources.\n\n3. Third-Party Services\nWe may use third-party services (e.g., AdMob/AppLovin) for advertising. These services have their own privacy policies.\n\n4. Data Security\nWe take reasonable measures to protect your data, but no method of transmission over the internet is 100% secure.\n\n5. Changes to This Policy\nWe may update this policy from time to time. We will notify you of any changes by posting the new policy on this page.\n\n6. Contact Us\nIf you have any questions, please contact us at: a.rehmanmazher11@gmail.com</string>
+
+    <!-- Tune Selection -->
+    <string name="tune_selection_title">Swipe Tune</string>
+    <string name="tune_selection_desc">Choose the instrument that plays while swiping across keys</string>
+
+    <!-- Other -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 </resources>

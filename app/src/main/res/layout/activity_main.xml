@@ -30,7 +30,7 @@
         android:layout_marginStart="-30dp"
         android:background="@drawable/bg_circle_pink" />
 
-    <!-- Menu button -->
+    <!-- Menu button (now opens Settings) -->
     <ImageButton
         android:id="@+id/btnMenu"
         android:layout_width="48dp"
@@ -39,7 +39,7 @@
         android:layout_margin="16dp"
         android:background="@drawable/bg_menu_button"
         android:src="@android:drawable/ic_menu_more"
-        android:contentDescription="Menu" />
+        android:contentDescription="Settings" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -228,9 +228,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- FIX: Sound + Vibration quick toggles, moved here from the old
-             in-keyboard Settings panel (which no longer exists — that key
-             now opens the emoji panel instead). -->
+        <!-- Sound + Vibration toggles -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -341,7 +339,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Tune"
+                        android:text="@string/tune"
                         android:textSize="18sp"
                         android:textColor="#FFFFFF"
                         android:textStyle="bold" />
@@ -349,7 +347,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Choose the swipe sound instrument"
+                        android:text="@string/tune_desc"
                         android:textSize="13sp"
                         android:textColor="#8888AA" />
                 </LinearLayout>
@@ -362,7 +360,72 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Ninja Fighting Mode toggle (UI only for now — feature coming later) -->
+        <!-- Settings Button (new) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/btnSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="#1A1A3A"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp">
+
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_icon_circle_blue"
+                    android:layout_marginEnd="16dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@android:drawable/ic_menu_preferences"
+                        android:tint="#4488FF"
+                        android:contentDescription="@null" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings"
+                        android:textSize="18sp"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="App settings, themes, and more"
+                        android:textSize="13sp"
+                        android:textColor="#8888AA" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_media_next"
+                    android:tint="#8888AA" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Ninja Fighting Mode toggle -->
         <LinearLayout
             android:id="@+id/btnToggleNinjaMode"
             android:layout_width="match_parent"
@@ -379,7 +442,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Ninja Fighting Mode"
+                android:text="@string/ninja_mode"
                 android:textSize="15sp"
                 android:textColor="#FFFFFF" />
 
@@ -387,24 +450,11 @@
                 android:id="@+id/labelNinjaMode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="OFF"
+                android:text="@string/off"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="#888888" />
         </LinearLayout>
-
-        <!-- About link -->
-        <TextView
-            android:id="@+id/btnAbout"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/about"
-            android:textSize="14sp"
-            android:textColor="#6666AA"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true" />
 
     </LinearLayout>
 </FrameLayout>

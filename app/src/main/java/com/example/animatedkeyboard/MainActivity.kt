@@ -11,6 +11,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import com.example.animatedkeyboard.settings.KeyboardSettings
 
 class MainActivity : AppCompatActivity() {
@@ -21,13 +22,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // FIX: btnEnable/btnChoose are LinearLayout containers in the XML (icon + two
-        // lines of text + chevron), not Button widgets — findViewById<Button> on them
-        // threw a ClassCastException on every launch.
         val btnEnable = findViewById<LinearLayout>(R.id.btnEnable)
         val btnChoose = findViewById<LinearLayout>(R.id.btnChoose)
-        val btnAbout = findViewById<TextView>(R.id.btnAbout)
         val btnMenu = findViewById<ImageButton>(R.id.btnMenu)
+        val btnSettings = findViewById<CardView>(R.id.btnSettings)
         val logoText = findViewById<TextView>(R.id.logoText)
 
         applyLogoGradient(logoText)
@@ -41,17 +39,17 @@ class MainActivity : AppCompatActivity() {
             imm.showInputMethodPicker()
         }
 
-        btnAbout.setOnClickListener {
-            startActivity(Intent(this, AboutActivity::class.java))
+        // Settings button opens the new SettingsActivity
+        btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
+        // Menu button now opens Settings as well
         btnMenu.setOnClickListener {
-            // Show about dialog or navigate to about
-            startActivity(Intent(this, AboutActivity::class.java))
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // FIX: Sound + Vibration toggles moved here from the old in-keyboard
-        // Settings panel — that key on the keyboard now opens the emoji panel.
+        // Sound + Vibration toggles
         val btnToggleSound = findViewById<LinearLayout>(R.id.btnToggleSound)
         val btnToggleVibration = findViewById<LinearLayout>(R.id.btnToggleVibration)
 
@@ -64,7 +62,7 @@ class MainActivity : AppCompatActivity() {
             updateToggleStates()
         }
 
-        findViewById<androidx.cardview.widget.CardView>(R.id.btnTune).setOnClickListener {
+        findViewById<CardView>(R.id.btnTune).setOnClickListener {
             startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
@@ -80,9 +78,6 @@ class MainActivity : AppCompatActivity() {
         updateToggleStates()
     }
 
-    // FIX: replaces the invalid <gradient> tag that used to be nested inside the
-    // TextView in XML (not valid there — <gradient> only works inside a <shape>
-    // drawable). This applies the same blue-to-pink brand gradient via a real shader.
     private fun applyLogoGradient(logoText: TextView) {
         logoText.post {
             val width = logoText.paint.measureText(logoText.text.toString())
@@ -117,9 +112,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // FIX: Reflects current Sound/Vibration state via dimmed icon + label text,
-    // since these are simple icon buttons rather than switches with a built-in
-    // on/off visual.
     private fun updateToggleStates() {
         val iconSound = findViewById<ImageView>(R.id.iconSound)
         val labelSound = findViewById<TextView>(R.id.labelSound)
