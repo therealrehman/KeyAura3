@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.*
 import android.os.Handler
 import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
@@ -13,8 +11,6 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
-import com.example.animatedkeyboard.theme.AnimationTheme
-import com.example.animatedkeyboard.theme.ParticleType
 import com.example.animatedkeyboard.urdu.UrduSuggestionRepository
 import com.example.animatedkeyboard.english.EnglishSuggestionRepository
 import com.example.animatedkeyboard.utils.AnimationEngine
@@ -22,122 +18,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 enum class KeyState { NORMAL, WHITE, PINK, FADE }
-
-// Particle System
-data class Particle(
-    var x: Float,
-    var y: Float,
-    var vx: Float,
-    var vy: Float,
-    var size: Float,
-    var color: Int,
-    var life: Float,
-    val maxLife: Float,
-    var type: ParticleShape = ParticleShape.CIRCLE
-) {
-    var rotation = 0f
-    var angularVel = 0f
-    var finished = false
-
-    fun update(dt: Float) {
-        life -= dt
-        if (life <= 0) { finished = true; return }
-        x += vx * dt
-        y += vy * dt
-        vy += 200f * dt // slight gravity
-        rotation += angularVel * dt
-        // Fade size
-        val progress = 1f - (life / maxLife)
-        size = size * (1f - progress * 0.5f)
-    }
-
-    fun draw(canvas: Canvas, paint: Paint) {
-        val alpha = (255 * (life / maxLife)).coerceIn(0f, 255f).toInt()
-        paint.color = color
-        paint.alpha = alpha
-        canvas.save()
-        canvas.translate(x, y)
-        canvas.rotate(rotation)
-        when (type) {
-            ParticleShape.CIRCLE -> {
-                canvas.drawCircle(0f, 0f, size / 2f, paint)
-            }
-            ParticleShape.PETAL -> {
-                val rx = size / 2f
-                val ry = size / 4f
-                canvas.drawOval(-rx, -ry, rx, ry, paint)
-            }
-            ParticleShape.LEAF -> {
-                val path = Path().apply {
-                    moveTo(0f, -size / 2f)
-                    cubicTo(size / 2f, -size / 2f, size / 2f, size / 4f, 0f, size / 2f)
-                    cubicTo(-size / 2f, size / 4f, -size / 2f, -size / 2f, 0f, -size / 2f)
-                }
-                canvas.drawPath(path, paint)
-            }
-            ParticleShape.STAR -> {
-                val half = size / 2f
-                val path = Path().apply {
-                    moveTo(0f, -half)
-                    lineTo(half * 0.4f, -half * 0.3f)
-                    lineTo(half, 0f)
-                    lineTo(half * 0.4f, half * 0.3f)
-                    lineTo(0f, half)
-                    lineTo(-half * 0.4f, half * 0.3f)
-                    lineTo(-half, 0f)
-                    lineTo(-half * 0.4f, -half * 0.3f)
-                    close()
-                }
-                canvas.drawPath(path, paint)
-            }
-            ParticleShape.CONFETTI -> {
-                canvas.drawRect(-size / 2f, -size / 6f, size / 2f, size / 6f, paint)
-            }
-            ParticleShape.RIBBON -> {
-                val path = Path().apply {
-                    moveTo(-size / 2f, 0f)
-                    quadraticTo(0f, -size / 3f, size / 2f, 0f)
-                    quadraticTo(0f, size / 3f, -size / 2f, 0f)
-                }
-                canvas.drawPath(path, paint)
-            }
-            ParticleShape.GEOMETRIC -> {
-                val half = size / 2f
-                val path = Path().apply {
-                    moveTo(0f, -half)
-                    lineTo(half * 0.7f, -half * 0.5f)
-                    lineTo(half, 0f)
-                    lineTo(half * 0.7f, half * 0.5f)
-                    lineTo(0f, half)
-                    lineTo(-half * 0.7f, half * 0.5f)
-                    lineTo(-half, 0f)
-                    lineTo(-half * 0.7f, -half * 0.5f)
-                    close()
-                }
-                canvas.drawPath(path, paint)
-            }
-            ParticleShape.SPARKLE -> {
-                val half = size / 2f
-                val path = Path().apply {
-                    moveTo(0f, -half)
-                    lineTo(half * 0.2f, -half * 0.2f)
-                    lineTo(half, 0f)
-                    lineTo(half * 0.2f, half * 0.2f)
-                    lineTo(0f, half)
-                    lineTo(-half * 0.2f, half * 0.2f)
-                    lineTo(-half, 0f)
-                    lineTo(-half * 0.2f, -half * 0.2f)
-                    close()
-                }
-                canvas.drawPath(path, paint)
-            }
-        }
-        canvas.restore()
-        paint.alpha = 255
-    }
-}
-
-enum class ParticleShape { CIRCLE, PETAL, LEAF, STAR, CONFETTI, RIBBON, GEOMETRIC, SPARKLE }
 
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -160,11 +40,8 @@ class KeyboardView @JvmOverloads constructor(
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
     private val clipboardRepo by lazy { com.example.animatedkeyboard.clipboard.ClipboardRepository.getInstance(context) }
 
-    // Theme & Particles
-    private var currentTheme: AnimationTheme = AnimationTheme.MASTER
-    private val particles = mutableListOf<Particle>()
-    private val particlePaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
-    private val random = java.util.Random()
+    // Animation engine – recreated on settings change
+    private var animationEngine: AnimationEngine = AnimationEngine(settings.animationType)
 
     private var pendingClipboardFull: String? = null
     private var pendingClipboardDisplay: String? = null
@@ -190,16 +67,17 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private val vibrator by lazy {
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
     }
 
     private fun triggerKeyHaptic() {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
+        if (!settings.hapticEnabled) return
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 v.vibrate(
-                    VibrationEffect.createOneShot(
+                    android.os.VibrationEffect.createOneShot(
                         settings.hapticDurationMs,
                         settings.hapticAmplitude
                     )
@@ -265,6 +143,9 @@ class KeyboardView @JvmOverloads constructor(
     private var currentSuggestions: List<String> = emptyList()
     private var imeAction: Int = EditorInfo.IME_ACTION_UNSPECIFIED
 
+    // Track the last word typed for next-word prediction
+    private var lastTypedWord: String = ""
+
     fun setImeAction(action: Int) {
         if (imeAction != action) {
             imeAction = action
@@ -276,6 +157,14 @@ class KeyboardView @JvmOverloads constructor(
         soundEngine.refreshTuneIfChanged()
     }
 
+    /** Refresh all settings from SharedPreferences and rebuild the keyboard. */
+    fun refreshSettings() {
+        animationEngine = AnimationEngine(settings.animationType)
+        createKeyMap(width, height)
+        soundEngine.refreshTuneIfChanged()
+        postInvalidateOnAnimation()
+    }
+
     fun setOnCustomKeyListener(listener: OnKeyListener) {
         this.keyListener = listener
     }
@@ -284,11 +173,6 @@ class KeyboardView @JvmOverloads constructor(
         handler.removeCallbacks(backspaceRunnable ?: Runnable {})
         handler.removeCallbacks(capsLockRunnable ?: Runnable {})
         soundEngine.release()
-    }
-
-    fun setTheme(theme: AnimationTheme) {
-        currentTheme = theme
-        postInvalidateOnAnimation()
     }
 
     companion object {
@@ -309,9 +193,8 @@ class KeyboardView @JvmOverloads constructor(
 
     private val keyPaint = Paint()
     private val keyBorderPaint = Paint()
-    private val stripBgPaint = Paint().apply { color = Color.parseColor("#050505"); isAntiAlias = true }
+    private val stripBgPaint = Paint().apply { color = Color.parseColor("#05050F"); isAntiAlias = true }
     private val textPaint = Paint()
-    private val animationEngine = AnimationEngine()
     private var lastFrameTime = 0L
     private var glowPulse = 0.5f
     private var glowDirection = -1
@@ -329,13 +212,22 @@ class KeyboardView @JvmOverloads constructor(
     private val popupBorderPaint = Paint()
     private val popupTextPaint = Paint()
 
-    private val letterLayout = listOf(
-        listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+    // FIX: Keyboard layouts – Number Row toggle now controls whether row 0 is shown
+    private val baseLetterLayout = listOf(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
         listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
         listOf("Shift", "z", "x", "c", "v", "b", "n", "m", "Del"),
         listOf("123", "Emoji", "Space", ".", "Go")
     )
+
+    private val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+
+    private val letterLayout: List<List<String>>
+        get() = if (settings.numberRowEnabled) {
+            listOf(numberRow) + baseLetterLayout
+        } else {
+            baseLetterLayout
+        }
 
     private val numberLayout = listOf(
         listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
@@ -357,7 +249,6 @@ class KeyboardView @JvmOverloads constructor(
     private var isShifted = false
     private var isCapsLocked = false
     private val keyMap = mutableMapOf<String, Rect>()
-    private val keyCodes = mutableMapOf<String, Int>()
     private var lastKeyTime = 0L
     private val debounceInterval = 25L
     private var touchStartX = 0f
@@ -368,56 +259,58 @@ class KeyboardView @JvmOverloads constructor(
     private var longPressKey: String? = null
     private var capsLockJustActivated = false
 
+    // Floating keyboard
+    private var floatingOffsetX = 0f
+    private var floatingOffsetY = 0f
+    private var isFloatingDragging = false
+    private var dragStartFloatingX = 0f
+    private var dragStartFloatingY = 0f
+
     init {
         setWillNotDraw(false)
         setBackgroundColor(Color.BLACK)
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
         contentDescription = "KeyAura keyboard"
 
-        keyPaint.color = Color.parseColor("#080808")
+        keyPaint.color = Color.parseColor("#08080F")
         keyPaint.isAntiAlias = true
         keyPaint.style = Paint.Style.FILL
-        keyBorderPaint.color = Color.parseColor("#1A1A1A")
+        keyBorderPaint.color = Color.parseColor("#1A1A2A")
         keyBorderPaint.isAntiAlias = true
         keyBorderPaint.style = Paint.Style.STROKE
-        keyBorderPaint.strokeWidth = dp(1f)
+        keyBorderPaint.strokeWidth = dp(1.5f)
         textPaint.color = Color.WHITE
         textPaint.textSize = dp(15f)
         textPaint.isAntiAlias = true
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.typeface = Typeface.DEFAULT_BOLD
-        popupPaint.color = Color.parseColor("#1E1E1E")
+        popupPaint.color = Color.parseColor("#1E1E30")
         popupPaint.isAntiAlias = true
         glowPaint.isAntiAlias = true
         popupBorderPaint.color = Color.WHITE
         popupBorderPaint.isAntiAlias = true
         popupBorderPaint.style = Paint.Style.STROKE
-        popupBorderPaint.strokeWidth = dp(1.5f)
+        popupBorderPaint.strokeWidth = dp(2f)
         popupTextPaint.color = Color.WHITE
         popupTextPaint.textSize = dp(30f)
         popupTextPaint.isAntiAlias = true
         popupTextPaint.textAlign = Paint.Align.CENTER
         popupTextPaint.isFakeBoldText = true
 
-        keyCodes["Shift"] = -1
-        keyCodes["Del"] = -5
-        keyCodes["Go"] = -4
-        keyCodes["Space"] = 32
-        keyCodes["123"] = -2
-        keyCodes["ABC"] = -3
-        keyCodes["Emoji"] = -9
-        keyCodes["=\\<"] = -7
-        keyCodes["Urdu"] = -8
+        refreshSettings()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
         val dm = context.resources.displayMetrics
         val isLandscape = dm.widthPixels > dm.heightPixels
+
+        // FIX: Apply keyboard height from settings
+        val heightPercent = settings.keyboardHeightPercent / 100f
         val desiredHeight = if (isLandscape) {
             (dm.heightPixels * landscapeHeightFraction).toInt()
         } else {
-            (dm.heightPixels * keyboardHeightFraction).toInt()
+            (dm.heightPixels * heightPercent).toInt()
         }
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -454,8 +347,11 @@ class KeyboardView @JvmOverloads constructor(
 
         val sideMargin = dp(sideMarginDp).toInt()
         val topBottomMargin = dp(topBottomMarginDp).toInt()
-        val hGap = dp(horizontalKeyGapDp).toInt()
-        val vGap = dp(verticalRowGapDp).toInt()
+
+        // Apply key spacing from settings
+        val spacingMultiplier = settings.keySpacing
+        val hGap = (dp(horizontalKeyGapDp) * spacingMultiplier).toInt()
+        val vGap = (dp(verticalRowGapDp) * spacingMultiplier).toInt()
 
         val rowCount = currentLayout.size
         val availableHeight = usableHeight - (topBottomMargin * 2) - (vGap * (rowCount - 1))
@@ -464,7 +360,7 @@ class KeyboardView @JvmOverloads constructor(
         var currentY = stripHeightPx + topBottomMargin
 
         for ((rowIndex, row) in currentLayout.withIndex()) {
-            val isHomeRow = currentLayout === letterLayout && rowIndex == 2
+            val isHomeRow = currentLayout == letterLayout && rowIndex == (if (settings.numberRowEnabled) 2 else 1)
             val rowSideMargin = if (isHomeRow) dp(sideMarginDp * 4f).toInt() else sideMargin
             val availableRowWidth = width - (rowSideMargin * 2) - (hGap * (row.size - 1))
             var totalWeight = 0.0
@@ -550,66 +446,22 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
-    // Particle emission
-    private fun emitParticles(x: Float, y: Float, count: Int = 12) {
-        val theme = currentTheme
-        val colors = theme.colors
-        val particleType = theme.particleType
-
-        val shape = when (particleType) {
-            ParticleType.PETAL -> ParticleShape.PETAL
-            ParticleType.LEAF -> ParticleShape.LEAF
-            ParticleType.STAR -> ParticleShape.STAR
-            ParticleType.CONFETTI -> ParticleShape.CONFETTI
-            ParticleType.RIBBON -> ParticleShape.RIBBON
-            ParticleType.GEOMETRIC -> ParticleShape.GEOMETRIC
-            ParticleType.SPARKLE -> ParticleShape.SPARKLE
-            else -> ParticleShape.CIRCLE
-        }
-
-        repeat(count) {
-            val angle = random.nextFloat() * 2 * Math.PI.toFloat()
-            val speed = 100f + random.nextFloat() * 300f
-            val size = dp(8f + random.nextFloat() * 12f)
-            val color = colors[random.nextInt(colors.size)]
-            particles.add(
-                Particle(
-                    x = x + random.nextFloat() * 40f - 20f,
-                    y = y + random.nextFloat() * 40f - 20f,
-                    vx = Math.cos(angle.toDouble()).toFloat() * speed,
-                    vy = Math.sin(angle.toDouble()).toFloat() * speed - 100f,
-                    size = size,
-                    color = color,
-                    life = 0.6f + random.nextFloat() * 0.8f,
-                    maxLife = 1.4f,
-                    type = shape
-                ).apply {
-                    rotation = random.nextFloat() * 360f
-                    angularVel = random.nextFloat() * 10f - 5f
-                }
-            )
-        }
-    }
-
-    private fun updateParticles(dt: Float) {
-        val iter = particles.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
-            p.update(dt)
-            if (p.finished) iter.remove()
-        }
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val now = System.currentTimeMillis()
-        val dt = if (lastFrameTime == 0L) 16 else (now - lastFrameTime).coerceIn(1L, 50L)
+        val dt = if (lastFrameTime == 0L) 16 else now - lastFrameTime
         lastFrameTime = now
 
-        // Update particles
-        updateParticles(dt / 1000f)
+        // Apply background opacity from settings
+        val bgAlpha = (255 * settings.backgroundOpacity).toInt()
+        canvas.drawColor(Color.argb(bgAlpha, 0, 0, 0))
 
-        canvas.drawColor(Color.BLACK)
+        // Apply floating keyboard offset if enabled
+        if (settings.floatingEnabled) {
+            canvas.save()
+            canvas.translate(floatingOffsetX, floatingOffsetY)
+        }
+
         drawCoolGlow(canvas)
 
         try {
@@ -624,15 +476,33 @@ class KeyboardView @JvmOverloads constructor(
                 drawKey(canvas, label, rect)
             }
             for (popup in pointerPopups.values) popup.draw(canvas)
-            // Draw particles on top
-            for (p in particles) {
-                p.draw(canvas, particlePaint)
+            if (settings.floatingEnabled) {
+                canvas.restore()
+                drawFloatingHandle(canvas)
             }
             postInvalidateOnAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Rendering error: ${e.message}")
             drawFallbackKeys(canvas)
+            if (settings.floatingEnabled) canvas.restore()
         }
+    }
+
+    private fun drawFloatingHandle(canvas: Canvas) {
+        val handlePaint = Paint().apply {
+            color = Color.parseColor("#4488FF")
+            isAntiAlias = true
+            style = Paint.Style.FILL
+        }
+        val handleWidth = dp(40f)
+        val handleHeight = dp(4f)
+        val cx = width / 2f
+        val cy = dp(8f)
+        canvas.drawRoundRect(
+            cx - handleWidth / 2, cy,
+            cx + handleWidth / 2, cy + handleHeight,
+            dp(2f), dp(2f), handlePaint
+        )
     }
 
     private fun drawFallbackKeys(canvas: Canvas) {
@@ -656,14 +526,18 @@ class KeyboardView @JvmOverloads constructor(
         val cy = height.toFloat()
         val a1 = (70 * glowPulse).toInt()
         val a2 = (35 * glowPulse).toInt()
+
+        // Apply theme colors to glow
+        val primary = settings.primaryColor
+        val accent = settings.accentColor
         val colors = intArrayOf(
-            Color.argb(a1, 60, 90, 255),
-            Color.argb(a2, 130, 60, 220),
+            Color.argb(a1, Color.red(primary), Color.green(primary), Color.blue(primary)),
+            Color.argb(a2, Color.red(accent), Color.green(accent), Color.blue(accent)),
             Color.TRANSPARENT
         )
         val pos = floatArrayOf(0f, 0.55f, 1f)
-        glowPaint.shader = RadialGradient(
-            cx, cy, width * 0.75f, colors, pos, Shader.TileMode.CLAMP
+        glowPaint.shader = android.graphics.RadialGradient(
+            cx, cy, width * 0.75f, colors, pos, android.graphics.Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glowPaint)
     }
@@ -698,6 +572,10 @@ class KeyboardView @JvmOverloads constructor(
     private fun drawKey(canvas: Canvas, label: String, rect: Rect) {
         val state = keyStates[label] ?: KeyState.NORMAL
 
+        // Apply theme colors to key background
+        val primary = settings.primaryColor
+        val accent = settings.accentColor
+
         when (state) {
             KeyState.WHITE -> {
                 keyPaint.color = Color.WHITE
@@ -705,14 +583,14 @@ class KeyboardView @JvmOverloads constructor(
                 keyPaint.setShadowLayer(35f, 0f, 0f, Color.WHITE)
             }
             KeyState.PINK -> {
-                keyPaint.color = Color.MAGENTA
+                keyPaint.color = accent
                 textPaint.color = Color.WHITE
-                keyPaint.setShadowLayer(28f, 0f, 0f, Color.MAGENTA)
+                keyPaint.setShadowLayer(28f, 0f, 0f, accent)
             }
             KeyState.FADE -> {
-                keyPaint.color = Color.parseColor("#FF6400")
+                keyPaint.color = primary
                 textPaint.color = Color.WHITE
-                keyPaint.setShadowLayer(22f, 0f, 0f, Color.parseColor("#FF6400"))
+                keyPaint.setShadowLayer(22f, 0f, 0f, primary)
             }
             KeyState.NORMAL -> {
                 if (label == "Urdu" && settings.urduEnabled) {
@@ -721,11 +599,11 @@ class KeyboardView @JvmOverloads constructor(
                 } else if (label == "Mic" && isListeningForSpeech) {
                     keyPaint.color = Color.parseColor("#CC2244")
                     textPaint.color = Color.WHITE
-                } else if (label.startsWith("sugg") || label == "clipSugg") {
-                    keyPaint.color = Color.parseColor("#151515")
+                } else if (label.startsWith("sugg")) {
+                    keyPaint.color = Color.parseColor("#15152A")
                     textPaint.color = Color.WHITE
                 } else {
-                    keyPaint.color = Color.parseColor("#080808")
+                    keyPaint.color = Color.parseColor("#08080F")
                     textPaint.color = Color.WHITE
                 }
                 keyPaint.clearShadowLayer()
@@ -739,7 +617,18 @@ class KeyboardView @JvmOverloads constructor(
 
         val keyMarginH = ((r - l) * 0.05f)
         val keyMarginV = ((b - t) * 0.05f)
-        val cornerRadius = dp(keyCornerRadiusDp)
+
+        // Apply key shape from settings
+        val cornerRadius = when (settings.keyShape) {
+            "squircle" -> dp(keyCornerRadiusDp * 1.5f)
+            "circle" -> minOf(rect.width(), rect.height()) / 2f
+            "diamond" -> dp(keyCornerRadiusDp * 0.3f)
+            else -> dp(keyCornerRadiusDp) // rounded
+        }
+
+        // Apply theme colors to key border
+        keyBorderPaint.color = settings.primaryColor
+
         canvas.drawRoundRect(l + keyMarginH, t + keyMarginV, r - keyMarginH, b - keyMarginV, cornerRadius, cornerRadius, keyPaint)
         canvas.drawRoundRect(l + keyMarginH, t + keyMarginV, r - keyMarginH, b - keyMarginV, cornerRadius, cornerRadius, keyBorderPaint)
 
@@ -757,722 +646,417 @@ class KeyboardView @JvmOverloads constructor(
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
-            "clipSugg" -> {
+            else -> if (label == "clipSugg") {
                 drawFittedChipText(canvas, pendingClipboardDisplay ?: "", rect)
-            }
-            else -> if (label.startsWith("sugg")) {
+            } else if (label.startsWith("sugg")) {
                 val index = label.removePrefix("sugg").toIntOrNull()
-                val word = index?.let { currentSuggestions.getOrNull(it) } ?: ""
-                drawFittedChipText(canvas, word, rect)
+                if (index != null && index < currentSuggestions.size) {
+                    drawFittedChipText(canvas, currentSuggestions[index], rect)
+                } else {
+                    canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
+                }
             } else {
                 canvas.drawText(dl, rect.exactCenterX(), rect.exactCenterY() + (textPaint.textSize / 3f), textPaint)
             }
         }
     }
 
-    private fun drawClipboardIcon(canvas: Canvas, rect: Rect, color: Int) {
-        val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeJoin = Paint.Join.ROUND }
-        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
-        val w = dp(12f); val h = dp(15f)
-        val bodyRect = RectF(cx - w / 2, cy - h / 2 + dp(1.5f), cx + w / 2, cy + h / 2)
-        canvas.drawRoundRect(bodyRect, dp(2f), dp(2f), p)
-        val clipW = dp(5f)
-        val clipRect = RectF(cx - clipW / 2, cy - h / 2 - dp(1.5f), cx + clipW / 2, cy - h / 2 + dp(2f))
-        canvas.drawRoundRect(clipRect, dp(1f), dp(1f), p)
-    }
-
-    private fun drawGameIcon(canvas: Canvas, rect: Rect, color: Int) {
-        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
-        val r = dp(6f)
-        val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
-        canvas.drawCircle(cx - dp(1f), cy, r, fillPaint)
-        val beak = Path().apply {
-            moveTo(cx + r - dp(1f), cy - dp(1.5f))
-            lineTo(cx + r + dp(4f), cy)
-            lineTo(cx + r - dp(1f), cy + dp(1.5f))
-            close()
-        }
-        canvas.drawPath(beak, fillPaint)
-        val strokePaint = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.4f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
-        val wing = Path().apply {
-            moveTo(cx - r, cy)
-            quadTo(cx - dp(2f), cy - dp(4f), cx + dp(1f), cy - dp(1f))
-        }
-        canvas.drawPath(wing, strokePaint)
-    }
-
-    private fun drawMicIcon(canvas: Canvas, rect: Rect, color: Int) {
-        val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
-        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
-        val capsuleW = dp(6f); val capsuleH = dp(10f)
-        val capsuleRect = RectF(cx - capsuleW / 2, cy - capsuleH / 2 - dp(2f), cx + capsuleW / 2, cy + capsuleH / 2 - dp(2f))
-        val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
-        canvas.drawRoundRect(capsuleRect, capsuleW / 2, capsuleW / 2, fillPaint)
-        val archTop = cy + capsuleH / 2 - dp(2f) - dp(2f)
-        val archRect = RectF(cx - dp(6f), archTop - dp(4f), cx + dp(6f), archTop + dp(6f))
-        canvas.drawArc(archRect, 20f, 140f, false, p)
-        canvas.drawLine(cx, archTop + dp(4f), cx, cy + capsuleH / 2 + dp(3f), p)
-        canvas.drawLine(cx - dp(3.5f), cy + capsuleH / 2 + dp(3f), cx + dp(3.5f), cy + capsuleH / 2 + dp(3f), p)
-    }
-
-    private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
-        if (word.isEmpty()) return
-        val maxWidth = rect.width() * 0.88f
-        val maxTextSizePx = dp(14f)
-        val minTextSizePx = dp(9f)
-        val p = Paint(textPaint).apply { textSize = maxTextSizePx }
-
-        var display = word
-        if (display.length > 50) display = display.take(47) + "…"
-
-        var size = maxTextSizePx
-        while (size > minTextSizePx && p.measureText(display) > maxWidth) {
-            size -= dp(0.5f)
-            p.textSize = size
-        }
-
-        if (p.measureText(display) > maxWidth) {
-            while (display.length > 1 && p.measureText("$display\u2026") > maxWidth) {
-                display = display.dropLast(1)
-            }
-            display += "\u2026"
-        }
-
-        canvas.drawText(display, rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
-    }
-
-    private fun drawEnterIcon(canvas: Canvas, rect: Rect, color: Int) {
-        when (imeAction) {
-            EditorInfo.IME_ACTION_SEARCH -> drawSearchIcon(canvas, rect, color)
-            EditorInfo.IME_ACTION_SEND -> drawSendIcon(canvas, rect, color)
-            EditorInfo.IME_ACTION_DONE -> drawDoneIcon(canvas, rect, color)
-            EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> drawGoArrowIcon(canvas, rect, color)
-            else -> drawReturnIcon(canvas, rect, color)
-        }
-    }
-
-    private val iconPaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
-
-    private fun drawSearchIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(2f)
-        iconPaint.strokeCap = Paint.Cap.ROUND
-        val cx = rect.exactCenterX() - dp(1.5f)
-        val cy = rect.exactCenterY() - dp(1.5f)
-        val s = minOf(rect.width(), rect.height()) * 0.16f
-        canvas.drawCircle(cx, cy, s, iconPaint)
-        val handleOffset = s * 0.75f
-        canvas.drawLine(
-            cx + handleOffset, cy + handleOffset,
-            cx + s * 1.6f, cy + s * 1.6f, iconPaint
-        )
-        iconPaint.style = Paint.Style.FILL
-    }
-
-    private fun drawSendIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.FILL
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.20f
-        val path = Path().apply {
-            moveTo(cx - s * 1.1f, cy - s * 0.9f)
-            lineTo(cx + s * 1.2f, cy)
-            lineTo(cx - s * 1.1f, cy + s * 0.9f)
-            lineTo(cx - s * 0.5f, cy)
-            close()
-        }
-        canvas.drawPath(path, iconPaint)
-    }
-
-    private fun drawDoneIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(2.2f)
-        iconPaint.strokeCap = Paint.Cap.ROUND
-        iconPaint.strokeJoin = Paint.Join.ROUND
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.18f
-        val path = Path().apply {
-            moveTo(cx - s, cy)
-            lineTo(cx - s * 0.2f, cy + s * 0.8f)
-            lineTo(cx + s * 1.1f, cy - s * 0.8f)
-        }
-        canvas.drawPath(path, iconPaint)
-        iconPaint.style = Paint.Style.FILL
-    }
-
-    private fun drawGoArrowIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(2f)
-        iconPaint.strokeCap = Paint.Cap.ROUND
-        iconPaint.strokeJoin = Paint.Join.ROUND
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.18f
-        val path = Path().apply {
-            moveTo(cx - s, cy - s)
-            lineTo(cx + s, cy)
-            lineTo(cx - s, cy + s)
-        }
-        canvas.drawPath(path, iconPaint)
-        iconPaint.style = Paint.Style.FILL
-    }
-
-    private fun drawReturnIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(2f)
-        iconPaint.strokeCap = Paint.Cap.ROUND
-
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.18f
-
-        val path = Path().apply {
-            moveTo(cx + s, cy - s * 0.7f)
-            lineTo(cx - s * 0.3f, cy - s * 0.7f)
-            lineTo(cx - s * 0.3f, cy - s * 1.2f)
-            lineTo(cx - s, cy)
-            lineTo(cx - s * 0.3f, cy + s * 1.2f)
-            lineTo(cx - s * 0.3f, cy + s * 0.7f)
-            lineTo(cx + s, cy + s * 0.7f)
-        }
-        canvas.drawPath(path, iconPaint)
-
-        iconPaint.style = Paint.Style.FILL
-    }
-
-    private fun drawEmojiGlyph(canvas: Canvas, rect: Rect) {
-        val glyphPaint = Paint().apply {
-            textSize = dp(19f)
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
-        }
-        canvas.drawText(
-            "\uD83D\uDE00",
-            rect.exactCenterX(),
-            rect.exactCenterY() + glyphPaint.textSize / 3f,
-            glyphPaint
-        )
-    }
+    // ==================== Icon drawing helpers ====================
 
     private fun drawShiftIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = if (isCapsLocked) Color.WHITE else if (isShifted) Color.WHITE else Color.parseColor("#AAAAAA")
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.22f
-        val path = Path().apply {
-            moveTo(cx, cy - s * 1.3f)
-            lineTo(cx + s, cy)
-            lineTo(cx + s * 0.45f, cy)
-            lineTo(cx + s * 0.45f, cy + s * 0.9f)
-            lineTo(cx - s * 0.45f, cy + s * 0.9f)
-            lineTo(cx - s * 0.45f, cy)
-            lineTo(cx - s, cy)
-            close()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2.5f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
         }
-        canvas.drawPath(path, iconPaint)
+        val s = dp(8f)
+        // Up arrow
+        canvas.drawLine(cx, cy + s, cx, cy - s, p)
+        canvas.drawLine(cx - s, cy, cx, cy - s, p)
+        canvas.drawLine(cx + s, cy, cx, cy - s, p)
+        // If caps lock, add underline
+        if (isCapsLocked) {
+            p.strokeWidth = dp(2f)
+            canvas.drawLine(cx - s * 0.7f, cy + s * 1.3f, cx + s * 0.7f, cy + s * 1.3f, p)
+        }
     }
 
     private fun drawBackspaceIcon(canvas: Canvas, rect: Rect, color: Int) {
-        iconPaint.color = color
-        iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = dp(1.8f)
-        iconPaint.strokeCap = Paint.Cap.ROUND
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
-        val s = minOf(rect.width(), rect.height()) * 0.20f
-        val bodyPath = Path().apply {
-            moveTo(cx - s * 1.3f, cy)
-            lineTo(cx - s * 0.5f, cy - s)
-            lineTo(cx + s * 1.1f, cy - s)
-            lineTo(cx + s * 1.1f, cy + s)
-            lineTo(cx - s * 0.5f, cy + s)
-            close()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2.5f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
         }
-        canvas.drawPath(bodyPath, iconPaint)
-        val xOffset = s * 0.35f
-        canvas.drawLine(cx - xOffset, cy - xOffset * 0.7f, cx + xOffset, cy + xOffset * 0.7f, iconPaint)
-        canvas.drawLine(cx + xOffset, cy - xOffset * 0.7f, cx - xOffset, cy + xOffset * 0.7f, iconPaint)
-        iconPaint.style = Paint.Style.FILL
+        val s = dp(9f)
+        // Backspace shape: left-pointing arrow with cross
+        val path = Path()
+        path.moveTo(cx + s, cy - s * 0.6f)
+        path.lineTo(cx - s * 0.5f, cy - s * 0.6f)
+        path.lineTo(cx - s * 0.5f, cy - s * 1.1f)
+        path.lineTo(cx - s * 1.2f, cy)
+        path.lineTo(cx - s * 0.5f, cy + s * 1.1f)
+        path.lineTo(cx - s * 0.5f, cy + s * 0.6f)
+        path.lineTo(cx + s, cy + s * 0.6f)
+        path.close()
+        canvas.drawPath(path, p)
+        // Cross
+        p.strokeWidth = dp(2f)
+        canvas.drawLine(cx + s * 0.3f, cy - s * 0.4f, cx + s * 0.9f, cy + s * 0.4f, p)
+        canvas.drawLine(cx + s * 0.9f, cy - s * 0.4f, cx + s * 0.3f, cy + s * 0.4f, p)
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                primaryPointerId = event.getPointerId(0)
-                touchStartX = event.x
-                touchStartY = event.y
-                isSwiping = false
-                isLongPress = false
-                lastSwipeKeyLabel = null
-                handleTouchDown(primaryPointerId, event.x, event.y, isPrimary = true)
-                return true
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                val idx = event.actionIndex
-                val pid = event.getPointerId(idx)
-                handleTouchDown(pid, event.getX(idx), event.getY(idx), isPrimary = false)
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val primaryIndex = event.findPointerIndex(primaryPointerId)
-                if (primaryIndex != -1) {
-                    val dx = event.getX(primaryIndex) - touchStartX
-                    val dy = event.getY(primaryIndex) - touchStartY
-                    val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                    if (dist > swipeThreshold) {
-                        if (!isSwiping) {
-                            pointerPopups.remove(primaryPointerId)?.release()
-                            pendingClickRunnables.remove(primaryPointerId)?.let { handler.removeCallbacks(it) }
-                        }
-                        isSwiping = true
-                    }
-                    if (!isSwiping) {
-                        handleTouchDown(primaryPointerId, event.getX(primaryIndex), event.getY(primaryIndex), isPrimary = true)
-                    } else {
-                        handleSwipeAnim(event.getX(primaryIndex), event.getY(primaryIndex))
-                    }
-                }
-                return true
-            }
-            MotionEvent.ACTION_POINTER_UP -> {
-                val idx = event.actionIndex
-                val pid = event.getPointerId(idx)
-                commitPointerKey(pid)
-                if (pid == primaryPointerId) {
-                    for (i in 0 until event.pointerCount) {
-                        val candidateId = event.getPointerId(i)
-                        if (candidateId != pid) {
-                            primaryPointerId = candidateId
-                            touchStartX = event.getX(i)
-                            touchStartY = event.getY(i)
-                            isSwiping = false
-                            lastSwipeKeyLabel = null
-                            break
-                        }
-                    }
-                }
-                return true
-            }
-            MotionEvent.ACTION_UP -> {
-                handler.removeCallbacks(backspaceRunnable ?: Runnable {})
-                handler.removeCallbacks(capsLockRunnable ?: Runnable {})
-                if (!isSwiping) {
-                    commitPointerKey(primaryPointerId)
-                } else {
-                    activePointers.remove(primaryPointerId)
-                    pointerPopups.remove(primaryPointerId)?.release()
-                }
-                capsLockJustActivated = false
-                isSwiping = false
-                isLongPress = false
-                longPressKey = null
-                return true
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                handler.removeCallbacks(backspaceRunnable ?: Runnable {})
-                handler.removeCallbacks(capsLockRunnable ?: Runnable {})
-                for (pid in activePointers.keys.toList()) {
-                    pointerPopups.remove(pid)?.release()
-                    pendingClickRunnables.remove(pid)?.let { handler.removeCallbacks(it) }
-                }
-                activePointers.clear()
-                capsLockJustActivated = false
-                isSwiping = false
-                isLongPress = false
-                longPressKey = null
-                return true
-            }
+    private fun drawEmojiGlyph(canvas: Canvas, rect: Rect) {
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val p = Paint().apply {
+            color = Color.WHITE
+            isAntiAlias = true
+            textSize = dp(18f)
+            textAlign = Paint.Align.CENTER
         }
-        return super.onTouchEvent(event)
+        canvas.drawText("\uD83D\uDE00", cx, cy + p.textSize / 3f, p) // grinning face
     }
 
-    private fun isPreviewEligible(label: String): Boolean {
-        return label.length == 1
+    private fun drawEnterIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2.5f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val s = dp(8f)
+        // Carriage return with arrow
+        canvas.drawLine(cx - s, cy - s, cx - s, cy + s * 0.5f, p)
+        canvas.drawLine(cx - s, cy + s * 0.5f, cx + s * 0.5f, cy + s * 0.5f, p)
+        canvas.drawLine(cx + s * 0.5f, cy + s * 0.5f, cx + s * 0.5f, cy - s * 0.5f, p)
+        // Arrow tip
+        canvas.drawLine(cx + s * 0.5f, cy - s * 0.5f, cx + s * 0.2f, cy - s * 0.2f, p)
+        canvas.drawLine(cx + s * 0.5f, cy - s * 0.5f, cx + s * 0.8f, cy - s * 0.2f, p)
     }
 
-    private val touchSlopPx by lazy { dp(2f).toInt() }
-    private val hitTestRect = Rect()
-
-    private fun commitPointerKey(pointerId: Int) {
-        val label = activePointers.remove(pointerId)
-        pointerPopups.remove(pointerId)?.release()
-        pendingClickRunnables.remove(pointerId)?.let {
-            handler.removeCallbacks(it)
-            if (settings.soundEnabled) soundEngine.playClick()
+    private fun drawClipboardIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
         }
-        if (label != null) {
-            val now = System.currentTimeMillis()
-            val skipDueToCapsLock = label == "Shift" && capsLockJustActivated
-            if (now - lastKeyTime > debounceInterval && !skipDueToCapsLock) {
-                lastKeyTime = now
-                commitKey(label)
-            }
+        val s = dp(8f)
+        // Rectangular clipboard with top tab
+        canvas.drawRect(cx - s * 0.8f, cy - s * 0.6f, cx + s * 0.8f, cy + s * 0.8f, p)
+        // Top tab
+        canvas.drawRect(cx - s * 0.3f, cy - s * 0.9f, cx + s * 0.3f, cy - s * 0.6f, p)
+        // Small handle
+        canvas.drawCircle(cx, cy - s * 0.9f, dp(2f), p)
+    }
+
+    private fun drawGameIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val s = dp(8f)
+        // D-pad or gamepad cross
+        canvas.drawLine(cx - s, cy, cx + s, cy, p)
+        canvas.drawLine(cx, cy - s, cx, cy + s, p)
+        // Round corners
+        canvas.drawCircle(cx - s, cy, dp(2f), p)
+        canvas.drawCircle(cx + s, cy, dp(2f), p)
+        canvas.drawCircle(cx, cy - s, dp(2f), p)
+        canvas.drawCircle(cx, cy + s, dp(2f), p)
+    }
+
+    private fun drawMicIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX()
+        val cy = rect.exactCenterY()
+        val p = Paint().apply {
+            this.color = color
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2.5f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val s = dp(7f)
+        // Mic body: oval
+        canvas.drawOval(cx - s * 0.5f, cy - s * 0.9f, cx + s * 0.5f, cy + s * 0.5f, p)
+        // Bottom line
+        canvas.drawLine(cx, cy + s * 0.5f, cx, cy + s * 0.9f, p)
+        // Side lines
+        canvas.drawLine(cx - s * 0.8f, cy + s * 0.2f, cx + s * 0.8f, cy + s * 0.2f, p)
+        // If listening, fill color
+        if (isListeningForSpeech) {
+            p.style = Paint.Style.FILL
+            p.alpha = 80
+            canvas.drawOval(cx - s * 0.5f, cy - s * 0.9f, cx + s * 0.5f, cy + s * 0.5f, p)
         }
     }
 
-    private fun handleTouchDown(pointerId: Int, x: Float, y: Float, isPrimary: Boolean) {
-        for ((label, rect) in keyMap) {
-            hitTestRect.set(rect)
-            hitTestRect.inset(-touchSlopPx, -touchSlopPx)
-            if (hitTestRect.contains(x.toInt(), y.toInt())) {
-                if (activePointers[pointerId] == label) return
-                activePointers[pointerId] = label
-                if (settings.hapticEnabled) {
-                    triggerKeyHaptic()
-                }
-                if (settings.soundEnabled) {
-                    pendingClickRunnables.remove(pointerId)?.let { handler.removeCallbacks(it) }
-                    val runnable = Runnable {
-                        pendingClickRunnables.remove(pointerId)
-                        soundEngine.playClick()
-                    }
-                    pendingClickRunnables[pointerId] = runnable
-                    handler.postDelayed(runnable, clickSoundDelayMs)
-                }
-
-                // Spawn particles on key press
-                emitParticles(rect.exactCenterX(), rect.exactCenterY())
-
-                animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
-                ripples.add(RippleEffect(rect.exactCenterX(), rect.exactCenterY()))
-                if (isPreviewEligible(label)) {
-                    pointerPopups[pointerId] = PopupEffect(label, rect.top.toFloat(), rect.exactCenterX(), rect.width().toFloat(), rect.height().toFloat())
-                } else {
-                    pointerPopups.remove(pointerId)?.release()
-                }
-                pressedKeys[label] = System.currentTimeMillis()
-                postInvalidateOnAnimation()
-
-                if (isPrimary && label == "Del") {
-                    isLongPress = true
-                    longPressKey = label
-                    backspaceRunnable = object : Runnable {
-                        override fun run() {
-                            if (isLongPress && longPressKey == "Del") {
-                                keyListener?.onKey(-5, "Del")
-                                handler.postDelayed(this, settings.backspaceRepeatIntervalMs)
-                            }
-                        }
-                    }
-                    handler.postDelayed(backspaceRunnable!!, 500)
-                }
-
-                if (isPrimary && label == "Shift") {
-                    isLongPress = true
-                    longPressKey = label
-                    capsLockRunnable = Runnable {
-                        if (isLongPress && longPressKey == "Shift") {
-                            isCapsLocked = true
-                            isShifted = true
-                            capsLockJustActivated = true
-                            postInvalidateOnAnimation()
-                        }
-                    }
-                    handler.postDelayed(capsLockRunnable!!, 400)
-                }
-                break
-            }
+    private fun drawFittedChipText(canvas: Canvas, text: String, rect: Rect) {
+        val p = Paint(textPaint).apply {
+            textSize = dp(13f)
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
         }
-    }
-
-    private fun handleSwipeAnim(x: Float, y: Float) {
-        for ((label, rect) in keyMap) {
-            hitTestRect.set(rect)
-            hitTestRect.inset(-touchSlopPx, -touchSlopPx)
-            if (hitTestRect.contains(x.toInt(), y.toInt())) {
-                // Spawn particles on swipe
-                emitParticles(rect.exactCenterX(), rect.exactCenterY(), 8)
-
-                animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
-                pressedKeys[label] = System.currentTimeMillis()
-                postInvalidateOnAnimation()
-
-                if (settings.soundEnabled && label != lastSwipeKeyLabel && width > 0) {
-                    lastSwipeKeyLabel = label
-                    val noteIndex = ((rect.exactCenterX() / width.toFloat()) * soundEngine.noteCount)
-                        .toInt().coerceIn(0, soundEngine.noteCount - 1)
-                    soundEngine.playSwipeTone(noteIndex)
-                }
-                break
-            }
-        }
-    }
-
-    private fun finalizeRomanBuffer() {
-        val typed = currentRomanBuffer.toString()
-        if (typed.isNotEmpty()) {
-            if (settings.urduEnabled) {
-                val match = urduRepo.phraseMatch(typed.uppercase()) ?: run {
-                    if (typed.length > 1) urduRepo.bestWordMatch(typed.lowercase()) else null
-                }
-                if (match != null) {
-                    for (i in 0 until typed.length) {
-                        keyListener?.onKey(-5, "Del")
-                    }
-                    keyListener?.onKey(match.hashCode(), match)
-                    urduRepo.recordUsage(typed.lowercase(), match)
-                }
-            }
-        }
-        currentRomanBuffer.clear()
-        if (currentSuggestions.isNotEmpty()) {
-            currentSuggestions = emptyList()
-            createKeyMap(width, height)
-        }
-    }
-
-    private fun updateSuggestions() {
-        val prefix = currentRomanBuffer.toString().lowercase()
-        currentSuggestions = when {
-            prefix.isEmpty() -> emptyList()
-            settings.urduEnabled -> urduRepo.candidatesForPrefix(prefix)
-            else -> englishRepo.candidatesForPrefix(prefix)
-        }
-        createKeyMap(width, height)
-    }
-
-    private fun commitSuggestion(index: Int) {
-        val word = currentSuggestions.getOrNull(index) ?: return
-        val typedPrefix = currentRomanBuffer.toString().lowercase()
-        val typedLength = currentRomanBuffer.length
-        for (i in 0 until typedLength) {
-            keyListener?.onKey(-5, "Del")
-        }
-        keyListener?.onKey(word.hashCode(), word)
-        if (settings.urduEnabled) {
-            urduRepo.recordUsage(typedPrefix, word)
+        val maxWidth = (rect.width() - dp(8f)).toFloat()
+        val display = if (p.measureText(text) > maxWidth) {
+            var end = text.length
+            while (end > 1 && p.measureText(text.substring(0, end) + "\u2026") > maxWidth) end--
+            text.substring(0, end) + "\u2026"
         } else {
-            englishRepo.recordUsage(typedPrefix, word)
+            text
         }
-        currentRomanBuffer.clear()
-        currentSuggestions = emptyList()
-        createKeyMap(width, height)
+        canvas.drawText(display, rect.exactCenterX(), rect.exactCenterY() + p.textSize / 3f, p)
     }
 
-    private fun commitKey(label: String) {
-        announceKeyForAccessibility(label)
-        when (label) {
-            "Shift" -> {
-                if (isCapsLocked) {
-                    isCapsLocked = false
-                    isShifted = false
-                } else {
-                    isShifted = !isShifted
-                }
-                postInvalidateOnAnimation()
-            }
-            "Del" -> {
-                if (currentRomanBuffer.isNotEmpty()) {
-                    currentRomanBuffer.deleteCharAt(currentRomanBuffer.length - 1)
-                    updateSuggestions()
-                }
-                keyListener?.onKey(-5, "Del")
-            }
-            "Go" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(-4, "Go")
-            }
-            "Space" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(32, "Space")
-            }
-            "123" -> {
-                finalizeRomanBuffer()
-                currentLayout = numberLayout
-                createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "ABC" -> {
-                finalizeRomanBuffer()
-                currentLayout = letterLayout
-                createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "=\\<" -> {
-                finalizeRomanBuffer()
-                currentLayout = extendedSymbolLayout
-                createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "Emoji" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(-9, "Emoji")
-            }
-            "Urdu" -> {
-                finalizeRomanBuffer()
-                settings.urduEnabled = !settings.urduEnabled
-                createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "Clipboard" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(-10, "Clipboard")
-            }
-            "Game" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(-14, "Game")
-            }
-            "Mic" -> {
-                finalizeRomanBuffer()
-                keyListener?.onKey(-11, "Mic")
-            }
-            else -> {
-                if (label == "clipSugg") {
-                    val fullText = pendingClipboardFull
-                    if (fullText != null) {
-                        keyListener?.onKey(fullText.hashCode(), fullText)
-                        keyListener?.onKey(32, "Space")
-                    }
-                    pendingClipboardFull = null
-                    pendingClipboardDisplay = null
-                    createKeyMap(width, height)
-                    return
-                }
+    // ==================== Ripple and Popup classes ====================
 
-                if (label.startsWith("sugg")) {
-                    val index = label.removePrefix("sugg").toIntOrNull()
-                    if (index != null) commitSuggestion(index)
-                    return
-                }
-
-                var fl = if ((isShifted || isCapsLocked) && label.length == 1 && label[0].isLetter()) label.uppercase() else label
-
-                if (fl.length == 1 && fl[0].isLetter()) {
-                    val lower = fl.lowercase()
-                    currentRomanBuffer.append(lower)
-                    if (settings.urduEnabled) {
-                        val urduChar = romanUrduMap[lower] ?: fl
-                        keyListener?.onKey(urduChar.hashCode(), urduChar)
-                    } else {
-                        keyListener?.onKey(fl.hashCode(), fl)
-                    }
-                    updateSuggestions()
-                } else if (settings.urduEnabled && urduPunctuationMap.containsKey(fl)) {
-                    finalizeRomanBuffer()
-                    val urduPunct = urduPunctuationMap.getValue(fl)
-                    keyListener?.onKey(urduPunct.hashCode(), urduPunct)
-                } else {
-                    keyListener?.onKey(fl.hashCode(), fl)
-                }
-
-                if (currentLayout == numberLayout && label.length == 1 && label != "=\\<") {
-                    currentLayout = letterLayout
-                    createKeyMap(width, height)
-                    postInvalidateOnAnimation()
-                }
-
-                if (isShifted && !isCapsLocked && label.isNotEmpty() && label[0].isLetter()) {
-                    isShifted = false
-                    postInvalidateOnAnimation()
-                }
-            }
-        }
-    }
-
-    private fun announceKeyForAccessibility(label: String) {
-        if (!isAccessibilityLiveRegionRelevant()) return
-        val spoken = when (label) {
-            "Del" -> "Backspace"
-            "Go" -> when (imeAction) {
-                EditorInfo.IME_ACTION_SEARCH -> "Search"
-                EditorInfo.IME_ACTION_SEND -> "Send"
-                EditorInfo.IME_ACTION_DONE -> "Done"
-                EditorInfo.IME_ACTION_GO -> "Go"
-                EditorInfo.IME_ACTION_NEXT -> "Next"
-                EditorInfo.IME_ACTION_PREVIOUS -> "Previous"
-                else -> "Enter"
-            }
-            "Space" -> "Space"
-            "Shift" -> if (isShifted) "Shift off" else "Shift on"
-            "123" -> "Numbers"
-            "ABC" -> "Letters"
-            "Emoji" -> "Emoji"
-            "Urdu" -> if (settings.urduEnabled) "Urdu typing off" else "Urdu typing on"
-            else -> if (label.startsWith("sugg")) {
-                val idx = label.removePrefix("sugg").toIntOrNull()
-                idx?.let { currentSuggestions.getOrNull(it) } ?: label
-            } else label
-        }
-        try {
-            announceForAccessibility(spoken)
-        } catch (_: Exception) { }
-    }
-
-    private fun isAccessibilityLiveRegionRelevant(): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
-        return am?.isEnabled == true
-    }
-
-    private inner class RippleEffect(private val cx: Float, private val cy: Float) {
-        private var radius = 0f
-        private var alp = 255
+    private inner class RippleEffect(
+        private val centerX: Float,
+        private val centerY: Float,
+        private val maxRadius: Float = 150f,
+        private val durationMs: Long = 400L
+    ) {
         var finished = false
-        private val maxR = 100f
-        private val dur = 500L
-        private val start = System.currentTimeMillis()
+        private var startTime = System.currentTimeMillis()
+        private val paint = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            color = Color.parseColor("#4488FF")
+        }
 
         fun update(dt: Long) {
-            val p = (System.currentTimeMillis() - start).toFloat() / dur.toFloat()
-            if (p >= 1.0f) { finished = true; return }
-            radius = maxR * p
-            alp = (255 * (1 - p)).toInt()
+            val progress = (System.currentTimeMillis() - startTime) / durationMs.toFloat()
+            if (progress >= 1f) {
+                finished = true
+            }
         }
 
         fun draw(canvas: Canvas) {
-            val pt = Paint()
-            pt.isAntiAlias = true
-            pt.color = Color.argb(alp, 255, 255, 255)
-            canvas.drawCircle(cx, cy, radius, pt)
+            if (finished) return
+            val progress = (System.currentTimeMillis() - startTime) / durationMs.toFloat()
+            val radius = maxRadius * progress
+            val alpha = ((1 - progress) * 255).toInt()
+            paint.alpha = alpha
+            canvas.drawCircle(centerX, centerY, radius, paint)
         }
     }
 
     private inner class PopupEffect(
-        private val lbl: String,
-        private val keyTop: Float,
-        private val px: Float,
-        private val keyWidth: Float,
-        private val keyHeight: Float
+        private val centerX: Float,
+        private val centerY: Float,
+        private val label: String
     ) {
-        private var alp = 255
         var finished = false
-        private var released = false
-        private var releaseStart = 0L
-        private val fadeDur = 100L
+        private var startTime = System.currentTimeMillis()
+        private val durationMs = 300L
 
-        fun release() {
-            if (!released) {
-                released = true
-                releaseStart = System.currentTimeMillis()
+        fun update(dt: Long) {
+            if (System.currentTimeMillis() - startTime > durationMs) {
+                finished = true
             }
         }
 
         fun draw(canvas: Canvas) {
-            if (released) {
-                val p = (System.currentTimeMillis() - releaseStart).toFloat() / fadeDur.toFloat()
-                if (p >= 1.0f) { finished = true; return }
-                alp = (255 * (1 - p)).toInt()
-            } else {
-                alp = 255
+            if (finished) return
+            val progress = (System.currentTimeMillis() - startTime) / durationMs.toFloat()
+            val alpha = ((1 - progress) * 255).toInt()
+            val scale = 1f + 0.2f * (1 - progress)
+            canvas.save()
+            canvas.translate(centerX, centerY)
+            canvas.scale(scale, scale)
+            val bgRect = RectF(-dp(30f), -dp(20f), dp(30f), dp(20f))
+            canvas.drawRoundRect(bgRect, dp(8f), dp(8f), popupPaint)
+            canvas.drawRoundRect(bgRect, dp(8f), dp(8f), popupBorderPaint)
+            popupTextPaint.alpha = alpha
+            canvas.drawText(label, 0f, popupTextPaint.textSize / 3f, popupTextPaint)
+            canvas.restore()
+        }
+    }
+
+    // ==================== Touch handling ====================
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        val pointerIndex = event.actionIndex
+        val pointerId = event.getPointerId(pointerIndex)
+        val x = event.getX(pointerIndex)
+        val y = event.getY(pointerIndex)
+
+        when (action) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (settings.floatingEnabled && y < dp(20f)) {
+                    isFloatingDragging = true
+                    dragStartFloatingX = x - floatingOffsetX
+                    dragStartFloatingY = y - floatingOffsetY
+                    return true
+                }
+                val key = findKeyAt(x, y) ?: return true
+                activePointers[pointerId] = key
+                if (primaryPointerId == -1) primaryPointerId = pointerId
+                if (key == "Shift") {
+                    // Handle long press for caps lock
+                    handler.postDelayed({
+                        if (activePointers.containsKey(pointerId) && activePointers[pointerId] == "Shift") {
+                            isCapsLocked = !isCapsLocked
+                            isShifted = isCapsLocked
+                            capsLockJustActivated = true
+                            postInvalidateOnAnimation()
+                            triggerKeyHaptic()
+                        }
+                    }, 400)
+                } else if (key == "Del") {
+                    // Long press for continuous delete
+                    handler.postDelayed({
+                        if (activePointers.containsKey(pointerId) && activePointers[pointerId] == "Del") {
+                            // Start repeating delete
+                            backspaceRunnable = object : Runnable {
+                                override fun run() {
+                                    if (activePointers.containsKey(pointerId) && activePointers[pointerId] == "Del") {
+                                        keyListener?.onKey(-5, "Del")
+                                        handler.postDelayed(this, 100)
+                                    }
+                                }
+                            }
+                            handler.post(backspaceRunnable!!)
+                        }
+                    }, 300)
+                }
+                pressedKeys[key] = System.currentTimeMillis()
+                keyStates[key] = KeyState.WHITE
+                postInvalidateOnAnimation()
+                triggerKeyHaptic()
+                // Play sound
+                if (settings.soundEnabled) {
+                    soundEngine.playClick()
+                }
+                // Trigger animation
+                animationEngine.triggerAnimation(x, y, key)
+                // Show popup
+                if (!key.startsWith("sugg") && !key.startsWith("clipSugg")) {
+                    pointerPopups[pointerId] = PopupEffect(x, y - dp(40f), key)
+                }
             }
+            MotionEvent.ACTION_MOVE -> {
+                if (isFloatingDragging) {
+                    floatingOffsetX = x - dragStartFloatingX
+                    floatingOffsetY = y - dragStartFloatingY
+                    postInvalidateOnAnimation()
+                    return true
+                }
+                // Gesture detection for swipe typing
+                val key = findKeyAt(x, y)
+                if (key != null && key != activePointers[pointerId]) {
+                    // Check if swipe distance is enough
+                    if (pointerId == primaryPointerId) {
+                        isSwiping = true
+                    }
+                    activePointers[pointerId] = key
+                    pressedKeys[key] = System.currentTimeMillis()
+                    keyStates[key] = KeyState.WHITE
+                    postInvalidateOnAnimation()
+                    // Play swipe tone
+                    if (settings.soundEnabled) {
+                        val noteIndex = key.hashCode() % 10
+                        soundEngine.playSwipeTone(noteIndex)
+                    }
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (isFloatingDragging) {
+                    isFloatingDragging = false
+                    return true
+                }
+                val key = activePointers[pointerId] ?: return true
+                activePointers.remove(pointerId)
+                if (pointerId == primaryPointerId) {
+                    primaryPointerId = -1
+                    isSwiping = false
+                }
+                // Cancel long press if not triggered
+                handler.removeCallbacksAndMessages(null)
+                // If key is Shift and caps lock not just activated, toggle shift
+                if (key == "Shift" && !capsLockJustActivated) {
+                    isShifted = !isShifted
+                    if (!isShifted) isCapsLocked = false
+                    postInvalidateOnAnimation()
+                }
+                capsLockJustActivated = false
+                // If not swiping, trigger key press
+                if (!isSwiping) {
+                    keyListener?.onKey(keyCodeForLabel(key), key)
+                }
+                // Remove popup
+                pointerPopups.remove(pointerId)
+                // Clear pressed state after delay
+                handler.postDelayed({
+                    keyStates[key] = KeyState.NORMAL
+                    postInvalidateOnAnimation()
+                }, 200)
+                // Reset swipe flag
+                isSwiping = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                isFloatingDragging = false
+                activePointers.clear()
+                primaryPointerId = -1
+                isSwiping = false
+                handler.removeCallbacksAndMessages(null)
+                pointerPopups.clear()
+                postInvalidateOnAnimation()
+            }
+        }
+        return true
+    }
 
-            val pw = keyWidth * 1.19f
-            val ph = keyHeight * 1.47f
-            val bubbleBottom = keyTop + keyHeight * 0.35f
-            val bubbleTop = bubbleBottom - ph
-            val radius = dp(14f)
+    private fun findKeyAt(x: Float, y: Float): String? {
+        for ((label, rect) in keyMap) {
+            if (rect.contains(x.toInt(), y.toInt())) {
+                return label
+            }
+        }
+        return null
+    }
 
-            popupPaint.alpha = alp
-            canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupPaint)
-            popupBorderPaint.alpha = alp
-            canvas.drawRoundRect(px - pw / 2, bubbleTop, px + pw / 2, bubbleBottom, radius, radius, popupBorderPaint)
-            popupTextPaint.alpha = alp
-            canvas.drawText(lbl.uppercase(), px, bubbleTop + ph * 0.42f, popupTextPaint)
+    private fun keyCodeForLabel(label: String): Int {
+        return when (label) {
+            "Space" -> 32
+            "Shift" -> -1
+            "Del" -> -5
+            "Go" -> -4
+            "123" -> -2
+            "ABC" -> -3
+            "Emoji" -> -9
+            "Clipboard" -> -10
+            "Mic" -> -11
+            "Game" -> -14
+            "Urdu" -> -12
+            else -> if (label.length == 1) label[0].toInt() else 0
         }
     }
 }
