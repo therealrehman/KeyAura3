@@ -61,6 +61,11 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getBoolean("cursor_swipe", true)
         set(value) = prefs.edit().putBoolean("cursor_swipe", value).apply()
 
+    // Theme
+    var selectedThemeIndex: Int
+        get() = prefs.getInt("selected_theme_index", 0)
+        set(value) = prefs.edit().putInt("selected_theme_index", value.coerceIn(0, 9)).apply()
+
     // Recent emoji
     private val recentEmojiDelimiter = "\u0000"
     private val maxRecentEmojis = 30

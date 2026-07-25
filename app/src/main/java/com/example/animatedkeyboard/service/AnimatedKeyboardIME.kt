@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -19,6 +21,8 @@ import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import com.example.animatedkeyboard.clipboard.ClipboardEntry
 import com.example.animatedkeyboard.clipboard.ClipboardRepository
+import com.example.animatedkeyboard.theme.AnimationTheme
+import com.example.animatedkeyboard.theme.ThemeRepository
 import com.example.animatedkeyboard.ui.view.ClipboardPanelView
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.GamePanelView
@@ -120,6 +124,12 @@ class AnimatedKeyboardIME : InputMethodService() {
         rootContainer.addView(gamePanelView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         registerClipboardListener()
+
+        // Apply saved theme to the keyboard view
+        val themeIndex = com.example.animatedkeyboard.settings.KeyboardSettings.getInstance(this).selectedThemeIndex
+        val theme = AnimationTheme.fromIndex(themeIndex)
+        keyboardView.setTheme(theme)
+
         return rootContainer
     }
 
@@ -153,7 +163,6 @@ class AnimatedKeyboardIME : InputMethodService() {
             if (!text.isNullOrBlank()) {
                 clipboardRepo.addText(text)
                 if (::keyboardView.isInitialized) {
-                    // Pass full text; KeyboardView will truncate for display
                     keyboardView.showClipboardSuggestion(text)
                 }
             }
@@ -191,8 +200,11 @@ class AnimatedKeyboardIME : InputMethodService() {
         val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (!granted) {
-            val intent = Intent(this, com.example.animatedkeyboard.SpeechPermissionActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            // Open system app settings page for manual permission enable
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
             startActivity(intent)
             return
         }
@@ -291,7 +303,12 @@ class AnimatedKeyboardIME : InputMethodService() {
         super.onStartInputView(info, restarting)
         currentInputEditorInfo = info
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
+
+        // Apply theme on keyboard view show
+        val themeIndex = com.example.animatedkeyboard.settings.KeyboardSettings.getInstance(this).selectedThemeIndex
+        val theme = AnimationTheme.fromIndex(themeIndex)
         if (::keyboardView.isInitialized) {
+            keyboardView.setTheme(theme)
             keyboardView.refreshSoundEngineTune()
             keyboardView.setImeAction(resolveEditorAction(info))
         }

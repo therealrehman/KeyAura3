@@ -1,13 +1,11 @@
 package com.example.animatedkeyboard.ui.view
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.Typeface
+import android.graphics.*
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
@@ -15,6 +13,8 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
+import com.example.animatedkeyboard.theme.AnimationTheme
+import com.example.animatedkeyboard.theme.ThemeRepository
 import com.example.animatedkeyboard.urdu.UrduSuggestionRepository
 import com.example.animatedkeyboard.english.EnglishSuggestionRepository
 import com.example.animatedkeyboard.utils.AnimationEngine
@@ -22,6 +22,108 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 enum class KeyState { NORMAL, WHITE, PINK, FADE }
+
+// Particle System
+data class Particle(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    var size: Float,
+    var color: Int,
+    var life: Float,
+    val maxLife: Float,
+    var type: ParticleShape = ParticleShape.CIRCLE
+) {
+    var rotation = 0f
+    var angularVel = 0f
+    var finished = false
+
+    fun update(dt: Float) {
+        life -= dt
+        if (life <= 0) { finished = true; return }
+        x += vx * dt
+        y += vy * dt
+        vy += 200f * dt // slight gravity
+        rotation += angularVel * dt
+        // Fade size
+        val progress = 1f - (life / maxLife)
+        size = size * (1f - progress * 0.5f)
+    }
+
+    fun draw(canvas: Canvas, paint: Paint) {
+        val alpha = (255 * (life / maxLife)).toInt()
+        paint.color = color
+        paint.alpha = alpha
+        canvas.save()
+        canvas.translate(x, y)
+        canvas.rotate(rotation)
+        when (type) {
+            ParticleShape.CIRCLE -> {
+                canvas.drawCircle(0f, 0f, size / 2f, paint)
+            }
+            ParticleShape.PETAL -> {
+                // Draw an ellipse rotated
+                val rx = size / 2f
+                val ry = size / 4f
+                canvas.drawOval(-rx, -ry, rx, ry, paint)
+            }
+            ParticleShape.LEAF -> {
+                val path = Path().apply {
+                    moveTo(0f, -size / 2f)
+                    cubicTo(size / 2f, -size / 2f, size / 2f, size / 4f, 0f, size / 2f)
+                    cubicTo(-size / 2f, size / 4f, -size / 2f, -size / 2f, 0f, -size / 2f)
+                }
+                canvas.drawPath(path, paint)
+            }
+            ParticleShape.STAR -> {
+                val half = size / 2f
+                val path = Path().apply {
+                    moveTo(0f, -half)
+                    lineTo(half * 0.4f, -half * 0.3f)
+                    lineTo(half, 0f)
+                    lineTo(half * 0.4f, half * 0.3f)
+                    lineTo(0f, half)
+                    lineTo(-half * 0.4f, half * 0.3f)
+                    lineTo(-half, 0f)
+                    lineTo(-half * 0.4f, -half * 0.3f)
+                    close()
+                }
+                canvas.drawPath(path, paint)
+            }
+            ParticleShape.CONFETTI -> {
+                canvas.drawRect(-size / 2f, -size / 6f, size / 2f, size / 6f, paint)
+            }
+            ParticleShape.RIBBON -> {
+                val path = Path().apply {
+                    moveTo(-size / 2f, 0f)
+                    quadraticTo(0f, -size / 3f, size / 2f, 0f)
+                    quadraticTo(0f, size / 3f, -size / 2f, 0f)
+                }
+                canvas.drawPath(path, paint)
+            }
+            ParticleShape.GEOMETRIC -> {
+                val half = size / 2f
+                val path = Path().apply {
+                    moveTo(0f, -half)
+                    lineTo(half * 0.7f, -half * 0.5f)
+                    lineTo(half, 0f)
+                    lineTo(half * 0.7f, half * 0.5f)
+                    lineTo(0f, half)
+                    lineTo(-half * 0.7f, half * 0.5f)
+                    lineTo(-half, 0f)
+                    lineTo(-half * 0.7f, -half * 0.5f)
+                    close()
+                }
+                canvas.drawPath(path, paint)
+            }
+        }
+        canvas.restore()
+        paint.alpha = 255
+    }
+}
+
+enum class ParticleShape { CIRCLE, PETAL, LEAF, STAR, CONFETTI, RIBBON, GEOMETRIC }
 
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -44,7 +146,12 @@ class KeyboardView @JvmOverloads constructor(
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
     private val clipboardRepo by lazy { com.example.animatedkeyboard.clipboard.ClipboardRepository.getInstance(context) }
 
-    // Clipboard suggestion: store full text and a display-friendly truncated version
+    // Theme & Particles
+    private var currentTheme: AnimationTheme = AnimationTheme.MASTER
+    private val particles = mutableListOf<Particle>()
+    private val particlePaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
+    private val random = java.util.Random()
+
     private var pendingClipboardFull: String? = null
     private var pendingClipboardDisplay: String? = null
 
@@ -55,12 +162,10 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun truncateForDisplay(text: String): String {
-        // Show first word if short, else first 30 characters
         val firstWord = text.split(Regex("\\s+")).firstOrNull() ?: text
         return if (firstWord.length <= 30) firstWord else firstWord.take(30) + "…"
     }
 
-    // Speech listening state
     private var isListeningForSpeech = false
 
     fun setListeningState(listening: Boolean) {
@@ -71,7 +176,7 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private val vibrator by lazy {
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     private fun triggerKeyHaptic() {
@@ -80,7 +185,7 @@ class KeyboardView @JvmOverloads constructor(
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 v.vibrate(
-                    android.os.VibrationEffect.createOneShot(
+                    VibrationEffect.createOneShot(
                         settings.hapticDurationMs,
                         settings.hapticAmplitude
                     )
@@ -165,6 +270,12 @@ class KeyboardView @JvmOverloads constructor(
         handler.removeCallbacks(backspaceRunnable ?: Runnable {})
         handler.removeCallbacks(capsLockRunnable ?: Runnable {})
         soundEngine.release()
+    }
+
+    fun setTheme(theme: AnimationTheme) {
+        currentTheme = theme
+        // Update animation engine too
+        postInvalidateOnAnimation()
     }
 
     companion object {
@@ -371,33 +482,28 @@ class KeyboardView @JvmOverloads constructor(
         val stripTop = dp(2f).toInt()
         val stripBottom = stripHeightPx - dp(2f).toInt()
 
-        // Urdu key
         val urduKeyWidth = dp(28f).toInt()
         val urduRight = sideMargin + urduKeyWidth
         keyMap["Urdu"] = Rect(sideMargin, stripTop, urduRight, stripBottom)
         keyStates.putIfAbsent("Urdu", KeyState.NORMAL)
 
-        // Clipboard key
         val clipboardKeyWidth = dp(28f).toInt()
         val clipboardLeft = urduRight + hGap
         val clipboardRight = clipboardLeft + clipboardKeyWidth
         keyMap["Clipboard"] = Rect(clipboardLeft, stripTop, clipboardRight, stripBottom)
         keyStates.putIfAbsent("Clipboard", KeyState.NORMAL)
 
-        // Game key
         val gameKeyWidth = dp(28f).toInt()
         val gameLeft = clipboardRight + hGap
         val gameRight = gameLeft + gameKeyWidth
         keyMap["Game"] = Rect(gameLeft, stripTop, gameRight, stripBottom)
         keyStates.putIfAbsent("Game", KeyState.NORMAL)
 
-        // Mic key
         val micKeyWidth = dp(32f).toInt()
         val micLeft = width - sideMargin - micKeyWidth
         keyMap["Mic"] = Rect(micLeft, stripTop, width - sideMargin, stripBottom)
         keyStates.putIfAbsent("Mic", KeyState.NORMAL)
 
-        // Clipboard suggestion chip (uses pendingClipboardDisplay if available)
         val chipsLeft = gameRight + hGap
         val chipsAvailableWidth = micLeft - hGap - chipsLeft
         if (chipsAvailableWidth <= 0) return
@@ -432,11 +538,60 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
+    // Particle emission
+    private fun emitParticles(x: Float, y: Float, count: Int = 12) {
+        val theme = AnimationTheme.fromIndex(settings.selectedThemeIndex)
+        val colors = theme.colors
+        val shape = when (theme.particleType) {
+            ParticleType.PETAL -> ParticleShape.PETAL
+            ParticleType.LEAF -> ParticleShape.LEAF
+            ParticleType.STAR -> ParticleShape.STAR
+            ParticleType.CONFETTI -> ParticleShape.CONFETTI
+            ParticleType.RIBBON -> ParticleShape.RIBBON
+            ParticleType.GEOMETRIC -> ParticleShape.GEOMETRIC
+            else -> ParticleShape.CIRCLE
+        }
+        repeat(count) {
+            val angle = random.nextFloat() * 2 * Math.PI.toFloat()
+            val speed = 100f + random.nextFloat() * 300f
+            val size = dp(8f + random.nextFloat() * 12f)
+            val color = colors[random.nextInt(colors.size)]
+            particles.add(
+                Particle(
+                    x = x + random.nextFloat() * 40f - 20f,
+                    y = y + random.nextFloat() * 40f - 20f,
+                    vx = Math.cos(angle.toDouble()).toFloat() * speed,
+                    vy = Math.sin(angle.toDouble()).toFloat() * speed - 100f,
+                    size = size,
+                    color = color,
+                    life = 0.6f + random.nextFloat() * 0.8f,
+                    maxLife = 1.4f,
+                    type = shape
+                ).apply {
+                    rotation = random.nextFloat() * 360f
+                    angularVel = random.nextFloat() * 10f - 5f
+                }
+            )
+        }
+    }
+
+    private fun updateParticles(dt: Float) {
+        val iter = particles.iterator()
+        while (iter.hasNext()) {
+            val p = iter.next()
+            p.update(dt)
+            if (p.finished) iter.remove()
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val now = System.currentTimeMillis()
-        val dt = if (lastFrameTime == 0L) 16 else now - lastFrameTime
+        val dt = if (lastFrameTime == 0L) 16 else (now - lastFrameTime).coerceIn(1L, 50L)
         lastFrameTime = now
+
+        // Update particles
+        updateParticles(dt / 1000f)
 
         canvas.drawColor(Color.BLACK)
         drawCoolGlow(canvas)
@@ -453,6 +608,10 @@ class KeyboardView @JvmOverloads constructor(
                 drawKey(canvas, label, rect)
             }
             for (popup in pointerPopups.values) popup.draw(canvas)
+            // Draw particles on top
+            for (p in particles) {
+                p.draw(canvas, particlePaint)
+            }
             postInvalidateOnAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Rendering error: ${e.message}")
@@ -487,8 +646,8 @@ class KeyboardView @JvmOverloads constructor(
             Color.TRANSPARENT
         )
         val pos = floatArrayOf(0f, 0.55f, 1f)
-        glowPaint.shader = android.graphics.RadialGradient(
-            cx, cy, width * 0.75f, colors, pos, android.graphics.Shader.TileMode.CLAMP
+        glowPaint.shader = RadialGradient(
+            cx, cy, width * 0.75f, colors, pos, Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glowPaint)
     }
@@ -583,7 +742,6 @@ class KeyboardView @JvmOverloads constructor(
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
             else -> if (label == "clipSugg") {
-                // Use the display text for the suggestion chip
                 drawFittedChipText(canvas, pendingClipboardDisplay ?: "", rect)
             } else if (label.startsWith("sugg")) {
                 val index = label.removePrefix("sugg").toIntOrNull()
@@ -599,10 +757,10 @@ class KeyboardView @JvmOverloads constructor(
         val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeJoin = Paint.Join.ROUND }
         val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
         val w = dp(12f); val h = dp(15f)
-        val bodyRect = android.graphics.RectF(cx - w / 2, cy - h / 2 + dp(1.5f), cx + w / 2, cy + h / 2)
+        val bodyRect = RectF(cx - w / 2, cy - h / 2 + dp(1.5f), cx + w / 2, cy + h / 2)
         canvas.drawRoundRect(bodyRect, dp(2f), dp(2f), p)
         val clipW = dp(5f)
-        val clipRect = android.graphics.RectF(cx - clipW / 2, cy - h / 2 - dp(1.5f), cx + clipW / 2, cy - h / 2 + dp(2f))
+        val clipRect = RectF(cx - clipW / 2, cy - h / 2 - dp(1.5f), cx + clipW / 2, cy - h / 2 + dp(2f))
         canvas.drawRoundRect(clipRect, dp(1f), dp(1f), p)
     }
 
@@ -611,16 +769,18 @@ class KeyboardView @JvmOverloads constructor(
         val r = dp(6f)
         val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
         canvas.drawCircle(cx - dp(1f), cy, r, fillPaint)
-        val beak = android.graphics.Path()
-        beak.moveTo(cx + r - dp(1f), cy - dp(1.5f))
-        beak.lineTo(cx + r + dp(4f), cy)
-        beak.lineTo(cx + r - dp(1f), cy + dp(1.5f))
-        beak.close()
+        val beak = Path().apply {
+            moveTo(cx + r - dp(1f), cy - dp(1.5f))
+            lineTo(cx + r + dp(4f), cy)
+            lineTo(cx + r - dp(1f), cy + dp(1.5f))
+            close()
+        }
         canvas.drawPath(beak, fillPaint)
         val strokePaint = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.4f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
-        val wing = android.graphics.Path()
-        wing.moveTo(cx - r, cy)
-        wing.quadTo(cx - dp(2f), cy - dp(4f), cx + dp(1f), cy - dp(1f))
+        val wing = Path().apply {
+            moveTo(cx - r, cy)
+            quadTo(cx - dp(2f), cy - dp(4f), cx + dp(1f), cy - dp(1f))
+        }
         canvas.drawPath(wing, strokePaint)
     }
 
@@ -628,11 +788,11 @@ class KeyboardView @JvmOverloads constructor(
         val p = Paint().apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); isAntiAlias = true; strokeCap = Paint.Cap.ROUND }
         val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
         val capsuleW = dp(6f); val capsuleH = dp(10f)
-        val capsuleRect = android.graphics.RectF(cx - capsuleW / 2, cy - capsuleH / 2 - dp(2f), cx + capsuleW / 2, cy + capsuleH / 2 - dp(2f))
+        val capsuleRect = RectF(cx - capsuleW / 2, cy - capsuleH / 2 - dp(2f), cx + capsuleW / 2, cy + capsuleH / 2 - dp(2f))
         val fillPaint = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
         canvas.drawRoundRect(capsuleRect, capsuleW / 2, capsuleW / 2, fillPaint)
         val archTop = cy + capsuleH / 2 - dp(2f) - dp(2f)
-        val archRect = android.graphics.RectF(cx - dp(6f), archTop - dp(4f), cx + dp(6f), archTop + dp(6f))
+        val archRect = RectF(cx - dp(6f), archTop - dp(4f), cx + dp(6f), archTop + dp(6f))
         canvas.drawArc(archRect, 20f, 140f, false, p)
         canvas.drawLine(cx, archTop + dp(4f), cx, cy + capsuleH / 2 + dp(3f), p)
         canvas.drawLine(cx - dp(3.5f), cy + capsuleH / 2 + dp(3f), cx + dp(3.5f), cy + capsuleH / 2 + dp(3f), p)
@@ -646,7 +806,6 @@ class KeyboardView @JvmOverloads constructor(
         val p = Paint(textPaint).apply { textSize = maxTextSizePx }
 
         var display = word
-        // If the raw word is already too long, truncate it before measuring
         if (display.length > 50) display = display.take(47) + "…"
 
         var size = maxTextSizePx
@@ -698,12 +857,13 @@ class KeyboardView @JvmOverloads constructor(
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.20f
-        val path = android.graphics.Path()
-        path.moveTo(cx - s * 1.1f, cy - s * 0.9f)
-        path.lineTo(cx + s * 1.2f, cy)
-        path.lineTo(cx - s * 1.1f, cy + s * 0.9f)
-        path.lineTo(cx - s * 0.5f, cy)
-        path.close()
+        val path = Path().apply {
+            moveTo(cx - s * 1.1f, cy - s * 0.9f)
+            lineTo(cx + s * 1.2f, cy)
+            lineTo(cx - s * 1.1f, cy + s * 0.9f)
+            lineTo(cx - s * 0.5f, cy)
+            close()
+        }
         canvas.drawPath(path, iconPaint)
     }
 
@@ -716,10 +876,11 @@ class KeyboardView @JvmOverloads constructor(
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.18f
-        val path = android.graphics.Path()
-        path.moveTo(cx - s, cy)
-        path.lineTo(cx - s * 0.2f, cy + s * 0.8f)
-        path.lineTo(cx + s * 1.1f, cy - s * 0.8f)
+        val path = Path().apply {
+            moveTo(cx - s, cy)
+            lineTo(cx - s * 0.2f, cy + s * 0.8f)
+            lineTo(cx + s * 1.1f, cy - s * 0.8f)
+        }
         canvas.drawPath(path, iconPaint)
         iconPaint.style = Paint.Style.FILL
     }
@@ -733,10 +894,11 @@ class KeyboardView @JvmOverloads constructor(
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.18f
-        val path = android.graphics.Path()
-        path.moveTo(cx - s, cy - s)
-        path.lineTo(cx + s, cy)
-        path.lineTo(cx - s, cy + s)
+        val path = Path().apply {
+            moveTo(cx - s, cy - s)
+            lineTo(cx + s, cy)
+            lineTo(cx - s, cy + s)
+        }
         canvas.drawPath(path, iconPaint)
         iconPaint.style = Paint.Style.FILL
     }
@@ -751,14 +913,15 @@ class KeyboardView @JvmOverloads constructor(
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.18f
 
-        val path = android.graphics.Path()
-        path.moveTo(cx + s, cy - s * 0.7f)
-        path.lineTo(cx - s * 0.3f, cy - s * 0.7f)
-        path.lineTo(cx - s * 0.3f, cy - s * 1.2f)
-        path.lineTo(cx - s, cy)
-        path.lineTo(cx - s * 0.3f, cy + s * 1.2f)
-        path.lineTo(cx - s * 0.3f, cy + s * 0.7f)
-        path.lineTo(cx + s, cy + s * 0.7f)
+        val path = Path().apply {
+            moveTo(cx + s, cy - s * 0.7f)
+            lineTo(cx - s * 0.3f, cy - s * 0.7f)
+            lineTo(cx - s * 0.3f, cy - s * 1.2f)
+            lineTo(cx - s, cy)
+            lineTo(cx - s * 0.3f, cy + s * 1.2f)
+            lineTo(cx - s * 0.3f, cy + s * 0.7f)
+            lineTo(cx + s, cy + s * 0.7f)
+        }
         canvas.drawPath(path, iconPaint)
 
         iconPaint.style = Paint.Style.FILL
@@ -785,15 +948,16 @@ class KeyboardView @JvmOverloads constructor(
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.22f
-        val path = android.graphics.Path()
-        path.moveTo(cx, cy - s * 1.3f)
-        path.lineTo(cx + s, cy)
-        path.lineTo(cx + s * 0.45f, cy)
-        path.lineTo(cx + s * 0.45f, cy + s * 0.9f)
-        path.lineTo(cx - s * 0.45f, cy + s * 0.9f)
-        path.lineTo(cx - s * 0.45f, cy)
-        path.lineTo(cx - s, cy)
-        path.close()
+        val path = Path().apply {
+            moveTo(cx, cy - s * 1.3f)
+            lineTo(cx + s, cy)
+            lineTo(cx + s * 0.45f, cy)
+            lineTo(cx + s * 0.45f, cy + s * 0.9f)
+            lineTo(cx - s * 0.45f, cy + s * 0.9f)
+            lineTo(cx - s * 0.45f, cy)
+            lineTo(cx - s, cy)
+            close()
+        }
         canvas.drawPath(path, iconPaint)
     }
 
@@ -805,13 +969,14 @@ class KeyboardView @JvmOverloads constructor(
         val cx = rect.exactCenterX()
         val cy = rect.exactCenterY()
         val s = minOf(rect.width(), rect.height()) * 0.20f
-        val bodyPath = android.graphics.Path()
-        bodyPath.moveTo(cx - s * 1.3f, cy)
-        bodyPath.lineTo(cx - s * 0.5f, cy - s)
-        bodyPath.lineTo(cx + s * 1.1f, cy - s)
-        bodyPath.lineTo(cx + s * 1.1f, cy + s)
-        bodyPath.lineTo(cx - s * 0.5f, cy + s)
-        bodyPath.close()
+        val bodyPath = Path().apply {
+            moveTo(cx - s * 1.3f, cy)
+            lineTo(cx - s * 0.5f, cy - s)
+            lineTo(cx + s * 1.1f, cy - s)
+            lineTo(cx + s * 1.1f, cy + s)
+            lineTo(cx - s * 0.5f, cy + s)
+            close()
+        }
         canvas.drawPath(bodyPath, iconPaint)
         val xOffset = s * 0.35f
         canvas.drawLine(cx - xOffset, cy - xOffset * 0.7f, cx + xOffset, cy + xOffset * 0.7f, iconPaint)
@@ -954,6 +1119,9 @@ class KeyboardView @JvmOverloads constructor(
                     handler.postDelayed(runnable, clickSoundDelayMs)
                 }
 
+                // Spawn particles on key press
+                emitParticles(rect.exactCenterX(), rect.exactCenterY())
+
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 ripples.add(RippleEffect(rect.exactCenterX(), rect.exactCenterY()))
                 if (isPreviewEligible(label)) {
@@ -1001,6 +1169,9 @@ class KeyboardView @JvmOverloads constructor(
             hitTestRect.set(rect)
             hitTestRect.inset(-touchSlopPx, -touchSlopPx)
             if (hitTestRect.contains(x.toInt(), y.toInt())) {
+                // Spawn particles on swipe
+                emitParticles(rect.exactCenterX(), rect.exactCenterY(), 8)
+
                 animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
                 pressedKeys[label] = System.currentTimeMillis()
                 postInvalidateOnAnimation()
@@ -1135,22 +1306,18 @@ class KeyboardView @JvmOverloads constructor(
                 keyListener?.onKey(-11, "Mic")
             }
             else -> {
-                // Clipboard suggestion chip
                 if (label == "clipSugg") {
                     val fullText = pendingClipboardFull
                     if (fullText != null) {
-                        // Paste the full text, then add a space
                         keyListener?.onKey(fullText.hashCode(), fullText)
                         keyListener?.onKey(32, "Space")
                     }
-                    // Clear the suggestion after use
                     pendingClipboardFull = null
                     pendingClipboardDisplay = null
                     createKeyMap(width, height)
                     return
                 }
 
-                // Suggestion chip
                 if (label.startsWith("sugg")) {
                     val index = label.removePrefix("sugg").toIntOrNull()
                     if (index != null) commitSuggestion(index)
