@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.cardview.widget.CardView
 import com.example.animatedkeyboard.settings.KeyboardSettings
+import com.example.animatedkeyboard.theme.ThemeSelectionActivity
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -35,6 +36,16 @@ class SettingsActivity : AppCompatActivity() {
         }
         findViewById<CardView>(R.id.btnPrivacyPolicy).setOnClickListener {
             startActivity(Intent(this, PrivacyPolicyActivity::class.java))
+        }
+
+        // Themes
+        findViewById<CardView>(R.id.btnThemes).setOnClickListener {
+            startActivity(Intent(this, ThemeSelectionActivity::class.java))
+        }
+
+        // Tune
+        findViewById<CardView>(R.id.btnTune).setOnClickListener {
+            startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
         // Switches

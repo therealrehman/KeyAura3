@@ -6,7 +6,6 @@ import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import com.example.animatedkeyboard.theme.AnimationTheme
-import com.example.animatedkeyboard.theme.ThemeRepository
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -43,9 +42,9 @@ class AnimationEngine {
 
     private fun getGradientColorsForKey(key: String): IntArray {
         val themeColors = currentTheme.colors
-        // Pick 5 colors randomly from the theme palette
         val selected = mutableListOf<Int>()
-        repeat(5) {
+        // Pick 4 random colors from the theme palette
+        repeat(4) {
             selected.add(themeColors[random.nextInt(themeColors.size)])
         }
         // Add transparent at the end

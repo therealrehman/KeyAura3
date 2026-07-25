@@ -14,7 +14,7 @@ import android.view.inputmethod.EditorInfo
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.theme.AnimationTheme
-import com.example.animatedkeyboard.theme.ThemeRepository
+import com.example.animatedkeyboard.theme.ParticleType
 import com.example.animatedkeyboard.urdu.UrduSuggestionRepository
 import com.example.animatedkeyboard.english.EnglishSuggestionRepository
 import com.example.animatedkeyboard.utils.AnimationEngine
@@ -52,7 +52,7 @@ data class Particle(
     }
 
     fun draw(canvas: Canvas, paint: Paint) {
-        val alpha = (255 * (life / maxLife)).toInt()
+        val alpha = (255 * (life / maxLife)).coerceIn(0f, 255f).toInt()
         paint.color = color
         paint.alpha = alpha
         canvas.save()
@@ -63,7 +63,6 @@ data class Particle(
                 canvas.drawCircle(0f, 0f, size / 2f, paint)
             }
             ParticleShape.PETAL -> {
-                // Draw an ellipse rotated
                 val rx = size / 2f
                 val ry = size / 4f
                 canvas.drawOval(-rx, -ry, rx, ry, paint)
@@ -117,13 +116,28 @@ data class Particle(
                 }
                 canvas.drawPath(path, paint)
             }
+            ParticleShape.SPARKLE -> {
+                val half = size / 2f
+                val path = Path().apply {
+                    moveTo(0f, -half)
+                    lineTo(half * 0.2f, -half * 0.2f)
+                    lineTo(half, 0f)
+                    lineTo(half * 0.2f, half * 0.2f)
+                    lineTo(0f, half)
+                    lineTo(-half * 0.2f, half * 0.2f)
+                    lineTo(-half, 0f)
+                    lineTo(-half * 0.2f, -half * 0.2f)
+                    close()
+                }
+                canvas.drawPath(path, paint)
+            }
         }
         canvas.restore()
         paint.alpha = 255
     }
 }
 
-enum class ParticleShape { CIRCLE, PETAL, LEAF, STAR, CONFETTI, RIBBON, GEOMETRIC }
+enum class ParticleShape { CIRCLE, PETAL, LEAF, STAR, CONFETTI, RIBBON, GEOMETRIC, SPARKLE }
 
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -274,7 +288,6 @@ class KeyboardView @JvmOverloads constructor(
 
     fun setTheme(theme: AnimationTheme) {
         currentTheme = theme
-        // Update animation engine too
         postInvalidateOnAnimation()
     }
 
@@ -293,7 +306,6 @@ class KeyboardView @JvmOverloads constructor(
 
     private val keyboardHeightFraction = 0.35f
     private val landscapeHeightFraction = 0.30f
-    private val spaceRowHeightFactor = 1.0f
 
     private val keyPaint = Paint()
     private val keyBorderPaint = Paint()
@@ -540,17 +552,21 @@ class KeyboardView @JvmOverloads constructor(
 
     // Particle emission
     private fun emitParticles(x: Float, y: Float, count: Int = 12) {
-        val theme = AnimationTheme.fromIndex(settings.selectedThemeIndex)
+        val theme = currentTheme
         val colors = theme.colors
-        val shape = when (theme.particleType) {
+        val particleType = theme.particleType
+
+        val shape = when (particleType) {
             ParticleType.PETAL -> ParticleShape.PETAL
             ParticleType.LEAF -> ParticleShape.LEAF
             ParticleType.STAR -> ParticleShape.STAR
             ParticleType.CONFETTI -> ParticleShape.CONFETTI
             ParticleType.RIBBON -> ParticleShape.RIBBON
             ParticleType.GEOMETRIC -> ParticleShape.GEOMETRIC
+            ParticleType.SPARKLE -> ParticleShape.SPARKLE
             else -> ParticleShape.CIRCLE
         }
+
         repeat(count) {
             val angle = random.nextFloat() * 2 * Math.PI.toFloat()
             val speed = 100f + random.nextFloat() * 300f
@@ -705,7 +721,7 @@ class KeyboardView @JvmOverloads constructor(
                 } else if (label == "Mic" && isListeningForSpeech) {
                     keyPaint.color = Color.parseColor("#CC2244")
                     textPaint.color = Color.WHITE
-                } else if (label.startsWith("sugg")) {
+                } else if (label.startsWith("sugg") || label == "clipSugg") {
                     keyPaint.color = Color.parseColor("#151515")
                     textPaint.color = Color.WHITE
                 } else {
@@ -741,9 +757,10 @@ class KeyboardView @JvmOverloads constructor(
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
-            else -> if (label == "clipSugg") {
+            "clipSugg" -> {
                 drawFittedChipText(canvas, pendingClipboardDisplay ?: "", rect)
-            } else if (label.startsWith("sugg")) {
+            }
+            else -> if (label.startsWith("sugg")) {
                 val index = label.removePrefix("sugg").toIntOrNull()
                 val word = index?.let { currentSuggestions.getOrNull(it) } ?: ""
                 drawFittedChipText(canvas, word, rect)
@@ -833,6 +850,8 @@ class KeyboardView @JvmOverloads constructor(
             else -> drawReturnIcon(canvas, rect, color)
         }
     }
+
+    private val iconPaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
 
     private fun drawSearchIcon(canvas: Canvas, rect: Rect, color: Int) {
         iconPaint.color = color
@@ -926,8 +945,6 @@ class KeyboardView @JvmOverloads constructor(
 
         iconPaint.style = Paint.Style.FILL
     }
-
-    private val iconPaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
 
     private fun drawEmojiGlyph(canvas: Canvas, rect: Rect) {
         val glyphPaint = Paint().apply {
