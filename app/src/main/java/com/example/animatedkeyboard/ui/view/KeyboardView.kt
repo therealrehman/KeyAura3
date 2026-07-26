@@ -34,7 +34,7 @@ class KeyboardView @JvmOverloads constructor(
     private val settings by lazy { KeyboardSettings.getInstance(context) }
     private val soundEngine by lazy { KeySoundEngine(context) }
 
-    private var animationEngine: AnimationEngine = AnimationEngine(settings.animationType)
+    private var animationEngine: AnimationEngine = AnimationEngine()
 
     // FIX: Missing setTheme function added
     fun setTheme(theme: AnimationTheme) {
@@ -51,7 +51,9 @@ class KeyboardView @JvmOverloads constructor(
     fun showClipboardSuggestion(fullText: String) { postInvalidateOnAnimation() }
 
     fun refreshSettings() {
-        animationEngine = AnimationEngine(settings.animationType)
+        animationEngine = AnimationEngine()
+        val themeIndex = settings.selectedThemeIndex
+        animationEngine.setTheme(AnimationTheme.fromIndex(themeIndex))
         createKeyMap(width, height)
         soundEngine.refreshTuneIfChanged()
         postInvalidateOnAnimation()

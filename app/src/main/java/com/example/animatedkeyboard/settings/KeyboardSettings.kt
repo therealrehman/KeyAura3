@@ -3,6 +3,7 @@ package com.example.animatedkeyboard.settings
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
+import com.example.animatedkeyboard.theme.AnimationTheme
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -137,6 +138,18 @@ class KeyboardSettings private constructor(context: Context) {
             value.forEach { (k, v) -> obj.put(k, v) }
             prefs.edit().putString("text_shortcuts", obj.toString()).apply()
         }
+
+    fun addTextShortcut(shortcut: String, expansion: String) {
+        val current = textShortcuts.toMutableMap()
+        current[shortcut] = expansion
+        textShortcuts = current
+    }
+
+    fun removeTextShortcut(shortcut: String) {
+        val current = textShortcuts.toMutableMap()
+        current.remove(shortcut)
+        textShortcuts = current
+    }
 
     var birdyBirdHighScore: Int
         get() = prefs.getInt("birdy_bird_high_score", 0)
