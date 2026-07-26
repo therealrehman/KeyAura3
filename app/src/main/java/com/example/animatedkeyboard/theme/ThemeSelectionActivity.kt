@@ -31,8 +31,11 @@ class ThemeSelectionActivity : AppCompatActivity() {
     }
 
     private fun buildThemeRow(index: Int, theme: AnimationTheme): LinearLayout {
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val dp16 = (16 * resources.displayMetrics.density).toInt()
+        val density = resources.displayMetrics.density
+        // FIX: dp4 was missing causing compilation crash
+        val dp4 = (4 * density).toInt()
+        val dp8 = (8 * density).toInt()
+        val dp16 = (16 * density).toInt()
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -48,7 +51,6 @@ class ThemeSelectionActivity : AppCompatActivity() {
             isFocusable = true
         }
 
-        // Color swatch preview — a row of colored circles
         val swatchContainer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
