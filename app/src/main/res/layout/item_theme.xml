@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    android:background="@drawable/bg_theme_item">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <!-- Preview container -->
+        <FrameLayout
+            android:id="@+id/themePreview"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:background="#0A0A1A"
+            android:layout_marginBottom="8dp">
+
+            <!-- Simplified keyboard preview -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_gravity="center"
+                android:padding="6dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginBottom="4dp">
+
+                    <View
+                        android:id="@+id/previewKey1"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_margin="2dp"
+                        android:background="#222222" />
+                    <View
+                        android:id="@+id/previewKey2"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_margin="2dp"
+                        android:background="#222222" />
+                    <View
+                        android:id="@+id/previewKey3"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_margin="2dp"
+                        android:background="#222222" />
+                    <View
+                        android:id="@+id/previewKey4"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_margin="2dp"
+                        android:background="#222222" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <TextView
+                        android:id="@+id/previewText1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Q"
+                        android:textSize="11sp"
+                        android:textColor="#888888"
+                        android:gravity="center" />
+                    <TextView
+                        android:id="@+id/previewText2"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="W"
+                        android:textSize="11sp"
+                        android:textColor="#888888"
+                        android:gravity="center" />
+                    <TextView
+                        android:id="@+id/previewText3"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="E"
+                        android:textSize="11sp"
+                        android:textColor="#888888"
+                        android:gravity="center" />
+                    <TextView
+                        android:id="@+id/previewText4"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="R"
+                        android:textSize="11sp"
+                        android:textColor="#888888"
+                        android:gravity="center" />
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Theme name + icon -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/themeIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔥"
+                android:textSize="16sp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/themeName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Inferno"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/themeCheckmark"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:text="✓"
+                android:textSize="16sp"
+                android:textColor="#4488FF"
+                android:gravity="center"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

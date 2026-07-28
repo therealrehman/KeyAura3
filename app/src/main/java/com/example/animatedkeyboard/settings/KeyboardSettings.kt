@@ -2,6 +2,7 @@ package com.example.animatedkeyboard.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -127,4 +128,27 @@ class KeyboardSettings private constructor(context: Context) {
     var backspaceRepeatIntervalMs: Long
         get() = prefs.getLong("backspace_interval", 100L)
         set(value) = prefs.edit().putLong("backspace_interval", value).apply()
+
+    // ---------- Theming (custom color / photo background) ----------
+
+    // Which theme is active: a preset id ("rainbow", "inferno", ...) or the
+    // special ids "custom_color" / "custom_image" — see ThemeRepository.resolve().
+    var selectedThemeId: String
+        get() = prefs.getString("selected_theme_id", "rainbow") ?: "rainbow"
+        set(value) = prefs.edit().putString("selected_theme_id", value).apply()
+
+    // User-picked color from the color wheel dialog (MainActivity.showColorPickerDialog).
+    var customThemeColor: Int
+        get() = prefs.getInt("custom_theme_color", Color.parseColor("#4488FF"))
+        set(value) = prefs.edit().putInt("custom_theme_color", value).apply()
+
+    // Absolute path to the copied keyboard background photo, or null if none picked yet.
+    var keyboardImagePath: String?
+        get() = prefs.getString("keyboard_image_path", null)
+        set(value) = prefs.edit().putString("keyboard_image_path", value).apply()
+
+    // Key click / tune playback volume, 0f (silent) .. 1f (full).
+    var keyVolume: Float
+        get() = prefs.getFloat("key_volume", 1.0f)
+        set(value) = prefs.edit().putFloat("key_volume", value.coerceIn(0f, 1f)).apply()
 }

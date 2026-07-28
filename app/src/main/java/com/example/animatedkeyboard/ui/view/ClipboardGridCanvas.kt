@@ -31,23 +31,31 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private fun dp(v: Float) = v * density
 
     private val topBarHeightDp = 40f
-    private val cardHeightDp = 56f
+    private val cardHeightDp = 84f
     private val cardPaddingDp = 6f
+    private val columns = 2
 
     private val backgroundPaint = Paint().apply { color = Color.BLACK }
     private val topBarPaint = Paint().apply { color = Color.parseColor("#0A0A0A") }
     private val titlePaint = Paint().apply {
         color = Color.WHITE; textSize = dp(16f); isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
     }
-    private val cardBgPaint = Paint().apply { color = Color.parseColor("#141414"); isAntiAlias = true }
-    private val cardPressedBgPaint = Paint().apply { color = Color.parseColor("#222222"); isAntiAlias = true }
+    private val cardBgPaint = Paint().apply { color = Color.parseColor("#141419"); isAntiAlias = true }
+    private val cardPressedBgPaint = Paint().apply { color = Color.parseColor("#232330"); isAntiAlias = true }
+    private val cardBorderPaint = Paint().apply {
+        color = Color.parseColor("#23232E"); style = Paint.Style.STROKE
+        strokeWidth = dp(1f); isAntiAlias = true
+    }
     private val textPreviewPaint = Paint().apply {
-        color = Color.WHITE; textSize = dp(13f); isAntiAlias = true
+        color = Color.parseColor("#E8E8EE"); textSize = dp(12f); isAntiAlias = true
+    }
+    private val timePaint = Paint().apply {
+        color = Color.parseColor("#5A5F70"); textSize = dp(10f); isAntiAlias = true
     }
     private val emptyStatePaint = Paint().apply {
         color = Color.parseColor("#666666"); textSize = dp(14f); isAntiAlias = true; textAlign = Paint.Align.CENTER
     }
-    private val pinIconPaint = Paint().apply { isAntiAlias = true; style = Paint.Style.FILL }
+    private val pinIconPaint = Paint().apply { isAntiAlias = true }
     private val backIconPaint = Paint().apply {
         color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2f)
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = true
@@ -58,7 +66,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private var scrollOffsetY = 0f
     private var maxScrollOffsetY = 0f
 
-    private val cardRects = mutableListOf<Triple<Rect, Rect, ClipboardEntry>>() // (cardRect, pinIconRect, entry)
+    private val cardRects = mutableListOf<Triple<Rect, Rect, ClipboardEntry>>()
     private var backButtonRect = Rect()
 
     private var pressedEntryId: String? = null
@@ -67,7 +75,6 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private var dragStartScrollOffset = 0f
     private val dragThreshold = dp(8f)
 
-    // Small in-memory bitmap cache so image thumbnails aren't re-decoded from disk every frame.
     private val bitmapCache = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean = size > 24
     }
@@ -79,7 +86,6 @@ class ClipboardGridCanvas @JvmOverloads constructor(
 
     fun refresh() {
         entries = repository.getAll()
-        scrollOffsetY = 0f
         postInvalidateOnAnimation()
     }
 
@@ -113,7 +119,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
         canvas.drawText("Clipboard", dp(14f), topBarPx / 2f + titlePaint.textSize / 3f, titlePaint)
         drawBackButton(canvas)
 
-        drawList(canvas, w, h, topBarPx)
+        drawGrid(canvas, w, h, topBarPx)
     }
 
     private fun drawBackButton(canvas: Canvas) {
@@ -127,7 +133,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
         canvas.drawLine(cx - s, cy, cx + s, cy + s, backIconPaint)
     }
 
-    private fun drawList(canvas: Canvas, w: Int, h: Int, top: Float) {
+    private fun drawGrid(canvas: Canvas, w: Int, h: Int, top: Float) {
         cardRects.clear()
         canvas.save()
         canvas.clipRect(0f, top, w.toFloat(), h.toFloat())
@@ -141,65 +147,109 @@ class ClipboardGridCanvas @JvmOverloads constructor(
 
         val padding = dp(cardPaddingDp)
         val cardHeight = dp(cardHeightDp)
+        val cardWidth = (w - padding * (columns + 1)) / columns
         val rowStride = cardHeight + padding
-        val totalContentHeight = entries.size * rowStride + padding
+        val totalRows = (entries.size + columns - 1) / columns
+        val totalContentHeight = totalRows * rowStride + padding
         val visibleHeight = h - top
         maxScrollOffsetY = max(0f, totalContentHeight - visibleHeight)
         scrollOffsetY = scrollOffsetY.coerceIn(0f, maxScrollOffsetY)
 
-        var y = top + padding - scrollOffsetY
-        for (entry in entries) {
-            val cardTop = y
-            val cardBottom = y + cardHeight
-            if (cardBottom >= top && cardTop <= h) {
-                val cardRect = Rect(padding.toInt(), cardTop.toInt(), (w - padding).toInt(), cardBottom.toInt())
-                val pinSize = dp(28f).toInt()
-                val pinRect = Rect(
-                    cardRect.right - pinSize - dp(6f).toInt(), cardRect.top + dp(6f).toInt(),
-                    cardRect.right - dp(6f).toInt(), cardRect.top + dp(6f).toInt() + pinSize
-                )
-                cardRects.add(Triple(cardRect, pinRect, entry))
-                drawCard(canvas, cardRect, pinRect, entry)
-            }
-            y += rowStride
+        for ((index, entry) in entries.withIndex()) {
+            val row = index / columns
+            val col = index % columns
+            val left = padding + col * (cardWidth + padding)
+            val cardTop = top + padding + row * rowStride - scrollOffsetY
+            val cardBottom = cardTop + cardHeight
+            if (cardBottom < top || cardTop > h) continue
+
+            val cardRect = Rect(left.toInt(), cardTop.toInt(), (left + cardWidth).toInt(), cardBottom.toInt())
+            val pinSize = dp(22f).toInt()
+            val pinRect = Rect(
+                cardRect.right - pinSize - dp(4f).toInt(), cardRect.top + dp(4f).toInt(),
+                cardRect.right - dp(4f).toInt(), cardRect.top + dp(4f).toInt() + pinSize
+            )
+            cardRects.add(Triple(cardRect, pinRect, entry))
+            drawCard(canvas, cardRect, pinRect, entry)
         }
         canvas.restore()
     }
 
     private fun drawCard(canvas: Canvas, cardRect: Rect, pinRect: Rect, entry: ClipboardEntry) {
         val bg = if (pressedEntryId == entry.id) cardPressedBgPaint else cardBgPaint
-        canvas.drawRoundRect(cardRect.left.toFloat(), cardRect.top.toFloat(), cardRect.right.toFloat(), cardRect.bottom.toFloat(), dp(10f), dp(10f), bg)
+        val radius = dp(12f)
+        canvas.drawRoundRect(cardRect.left.toFloat(), cardRect.top.toFloat(),
+            cardRect.right.toFloat(), cardRect.bottom.toFloat(), radius, radius, bg)
+        canvas.drawRoundRect(cardRect.left.toFloat(), cardRect.top.toFloat(),
+            cardRect.right.toFloat(), cardRect.bottom.toFloat(), radius, radius, cardBorderPaint)
 
         val contentLeft = cardRect.left + dp(10f)
-        val contentRight = pinRect.left - dp(6f)
+        val contentRight = cardRect.right - dp(10f)
 
         if (entry.type == "image") {
             val bmp = bitmapFor(entry.content)
             if (bmp != null) {
-                val thumbSize = cardRect.height() - dp(12f).toInt()
-                val srcRect = Rect(0, 0, bmp.width, bmp.height)
-                val dstRect = Rect(contentLeft.toInt(), cardRect.top + dp(6f).toInt(), contentLeft.toInt() + thumbSize, cardRect.bottom - dp(6f).toInt())
-                canvas.drawBitmap(bmp, srcRect, dstRect, null)
+                val thumbH = cardRect.height() - dp(26f).toInt()
+                val thumbW = thumbH * bmp.width / max(1, bmp.height)
+                val dst = Rect(contentLeft.toInt(), cardRect.top + dp(8f).toInt(),
+                    contentLeft.toInt() + minOf(thumbW, cardRect.width() / 2), cardRect.top + dp(8f).toInt() + thumbH)
+                canvas.drawBitmap(bmp, Rect(0, 0, bmp.width, bmp.height), dst, null)
             } else {
-                canvas.drawText("[image]", contentLeft, cardRect.exactCenterY() + textPreviewPaint.textSize / 3f, textPreviewPaint)
+                canvas.drawText("🖼 image", contentLeft, cardRect.exactCenterY(), textPreviewPaint)
             }
         } else {
-            val available = (contentRight - contentLeft).toInt()
-            val truncated = truncateToWidth(entry.content.replace("\n", " "), textPreviewPaint, available)
-            canvas.drawText(truncated, contentLeft, cardRect.exactCenterY() + textPreviewPaint.textSize / 3f, textPreviewPaint)
+            // FIX: preview sirf 3 lines / ~90 chars — poora text memory me hai, draw nahi hota
+            val preview = entry.content.replace(Regex("\\s+"), " ").trim().take(90)
+            drawWrappedText(canvas, preview, contentLeft, cardRect.top + dp(16f),
+                contentRight, dp(14f), 3, textPreviewPaint)
         }
 
-        pinIconPaint.color = if (entry.pinned) Color.parseColor("#4488FF") else Color.parseColor("#444444")
+        // Relative time
+        canvas.drawText(relativeTime(entry.timestamp), contentLeft,
+            cardRect.bottom - dp(6f), timePaint)
+
+        // Pin dot
+        pinIconPaint.color = if (entry.pinned) Color.parseColor("#4488FF") else Color.parseColor("#3A3A44")
         pinIconPaint.style = if (entry.pinned) Paint.Style.FILL else Paint.Style.STROKE
         pinIconPaint.strokeWidth = dp(1.5f)
-        canvas.drawCircle(pinRect.exactCenterX(), pinRect.exactCenterY(), pinRect.width() / 2.4f, pinIconPaint)
+        canvas.drawCircle(pinRect.exactCenterX(), pinRect.exactCenterY(), pinRect.width() / 2.6f, pinIconPaint)
     }
 
-    private fun truncateToWidth(text: String, paint: Paint, maxWidth: Int): String {
-        if (paint.measureText(text) <= maxWidth) return text
-        var end = text.length
-        while (end > 1 && paint.measureText(text.substring(0, end) + "\u2026") > maxWidth) end--
-        return text.substring(0, end) + "\u2026"
+    private fun drawWrappedText(
+        canvas: Canvas, text: String, left: Float, top: Float,
+        right: Float, lineHeight: Float, maxLines: Int, paint: Paint
+    ) {
+        var remaining = text
+        var y = top + paint.textSize
+        var line = 0
+        while (remaining.isNotEmpty() && line < maxLines) {
+            val count = paint.breakText(remaining, true, right - left, null)
+            if (count <= 0) break
+            var part = remaining.take(count)
+            if (line == maxLines - 1 && count < remaining.length) {
+                while (part.isNotEmpty() && paint.measureText("$part…") > right - left) {
+                    part = part.dropLast(1)
+                }
+                part += "…"
+            }
+            canvas.drawText(part, left, y, paint)
+            remaining = remaining.drop(count).trimStart()
+            y += lineHeight
+            line++
+        }
+    }
+
+    private fun relativeTime(ts: Long): String {
+        val diff = System.currentTimeMillis() - ts
+        val min = diff / 60000
+        val hr = min / 60
+        val day = hr / 24
+        return when {
+            min < 1 -> "just now"
+            min < 60 -> "${min}m ago"
+            hr < 24 -> "${hr}h ago"
+            else -> "${day}d ago"
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -208,14 +258,18 @@ class ClipboardGridCanvas @JvmOverloads constructor(
                 dragStartY = event.y
                 dragStartScrollOffset = scrollOffsetY
                 isDraggingScroll = false
-                if (backButtonRect.contains(event.x.toInt(), event.y.toInt())) { postInvalidateOnAnimation(); return true }
+                if (backButtonRect.contains(event.x.toInt(), event.y.toInt())) {
+                    postInvalidateOnAnimation(); return true
+                }
                 val hit = cardRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }
                 if (hit != null) { pressedEntryId = hit.third.id; postInvalidateOnAnimation() }
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dy = event.y - dragStartY
-                if (!isDraggingScroll && abs(dy) > dragThreshold) { isDraggingScroll = true; pressedEntryId = null }
+                if (!isDraggingScroll && abs(dy) > dragThreshold) {
+                    isDraggingScroll = true; pressedEntryId = null
+                }
                 if (isDraggingScroll) {
                     scrollOffsetY = (dragStartScrollOffset - dy).coerceIn(0f, maxScrollOffsetY)
                     postInvalidateOnAnimation()

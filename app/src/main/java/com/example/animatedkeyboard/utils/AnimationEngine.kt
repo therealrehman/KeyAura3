@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import com.example.animatedkeyboard.theme.ThemeRepository
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -12,9 +13,28 @@ class AnimationEngine {
     private val activeAnimations = mutableListOf<GradientAnimation>()
     private val random = Random(System.currentTimeMillis())
 
+    // FIX: theme-aware glow bursts. Null singleThemeColor = default per-key
+    // rainbow palette (ThemeType.ANIMATED_MULTI). Non-null = every burst uses
+    // shades of that one color instead (ANIMATED_SINGLE / CUSTOM_COLOR).
+    // themeAnimationsEnabled=false skips bursts entirely (ThemeType.SOLID).
+    var singleThemeColor: Int? = null
+    var themeAnimationsEnabled: Boolean = true
+
     fun triggerAnimation(x: Float, y: Float, keyLabel: String) {
-        val colors = getGradientColorsForKey(keyLabel)
+        if (!themeAnimationsEnabled) return
+        val colors = singleThemeColor?.let { gradientColorsForSingle(it) }
+            ?: getGradientColorsForKey(keyLabel)
         activeAnimations.add(GradientAnimation(x, y, colors))
+    }
+
+    private fun gradientColorsForSingle(base: Int): IntArray {
+        return intArrayOf(
+            ThemeRepository.lighten(base, 0.55f),
+            ThemeRepository.lighten(base, 0.2f),
+            base,
+            ThemeRepository.darken(base, 0.35f),
+            Color.TRANSPARENT
+        )
     }
 
     fun update(elapsedTimeMs: Long) {

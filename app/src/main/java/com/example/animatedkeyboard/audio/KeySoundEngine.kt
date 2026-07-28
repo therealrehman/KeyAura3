@@ -65,7 +65,8 @@ class KeySoundEngine(context: Context) {
     fun playClick() {
         if (!isClickLoaded || clickSoundId == 0) return
         try {
-            soundPool.play(clickSoundId, 1.0f, 1.0f, 1, 0, 1.0f)
+            val vol = settings.keyVolume
+            soundPool.play(clickSoundId, vol, vol, 1, 0, 1.0f)
         } catch (e: Exception) {
             Log.w(TAG, "Could not play click: ${e.message}")
         }
@@ -77,7 +78,8 @@ class KeySoundEngine(context: Context) {
         val idx = ((noteIndex % noteCount) + noteCount) % noteCount
         if (!noteLoaded[idx]) return
         try {
-            soundPool.play(noteSoundIds[idx], 1.0f, 1.0f, 1, 0, 1.0f)
+            val vol = settings.keyVolume
+            soundPool.play(noteSoundIds[idx], vol, vol, 1, 0, 1.0f)
         } catch (e: Exception) {
             Log.w(TAG, "Could not play swipe tone: ${e.message}")
         }

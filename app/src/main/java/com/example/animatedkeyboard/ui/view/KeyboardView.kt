@@ -372,6 +372,8 @@ class KeyboardView @JvmOverloads constructor(
         keyCodes["Emoji"] = -9
         keyCodes["=\\<"] = -7
         keyCodes["Urdu"] = -8
+
+        refreshTheme()
     }
 
     // FIX: Landscape - use fixed height, never expand to fullscreen
@@ -540,7 +542,12 @@ class KeyboardView @JvmOverloads constructor(
         val dt = if (lastFrameTime == 0L) 16 else now - lastFrameTime
         lastFrameTime = now
 
-        canvas.drawColor(Color.BLACK)
+        val bgBmp = kbBgBitmap
+        if (activeTheme.type == ThemeType.CUSTOM_IMAGE && bgBmp != null && !bgBmp.isRecycled) {
+            drawImageBackground(canvas, bgBmp)
+        } else {
+            canvas.drawColor(activeTheme.bgColor)
+        }
         drawCoolGlow(canvas)
 
         try {
