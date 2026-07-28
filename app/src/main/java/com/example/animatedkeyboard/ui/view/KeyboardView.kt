@@ -1,5 +1,10 @@
 package com.example.animatedkeyboard.ui.view
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import com.example.animatedkeyboard.theme.KeyboardTheme
+import com.example.animatedkeyboard.theme.ThemeRepository
+import com.example.animatedkeyboard.theme.ThemeType
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -168,6 +173,67 @@ class KeyboardView @JvmOverloads constructor(
     fun refreshSoundEngineTune() {
         soundEngine.refreshTuneIfChanged()
     }
+
+    // ---------- Theme engine ----------
+    private var activeTheme: KeyboardTheme = ThemeRepository.defaultTheme
+    private var kbBgBitmap: Bitmap? = null
+    private var kbBgPath: String? = null
+
+    /** IME har keyboard show par call karta hai — nayi theme foran apply. */
+    fun refreshTheme() {
+        activeTheme = ThemeRepository.resolve(settings)
+        when (activeTheme.type) {
+            ThemeType.ANIMATED_MULTI -> {
+                animationEngine.singleThemeColor = null
+                animationEngine.themeAnimationsEnabled = settings.animationEnabled
+            }
+            ThemeType.ANIMATED_SINGLE -> {
+                animationEngine.singleThemeColor = activeTheme.accentColor
+                animationEngine.themeAnimationsEnabled = settings.animationEnabled
+            }
+            ThemeType.SOLID -> {
+                animationEngine.themeAnimationsEnabled = false // simple theme — no animation
+            }
+            ThemeType.CUSTOM_COLOR -> {
+                animationEngine.singleThemeColor = settings.customThemeColor
+                animationEngine.themeAnimationsEnabled = settings.animationEnabled
+            }
+            ThemeType.CUSTOM_IMAGE -> {
+                animationEngine.singleThemeColor = null
+                animationEngine.themeAnimationsEnabled = settings.animationEnabled
+            }
+        }
+        loadBgBitmapIfNeeded()
+        stripBgPaint.color = if (activeTheme.type == ThemeType.SOLID)
+            ThemeRepository.darken(activeTheme.bgColor, 0.6f) else Color.parseColor("#050505")
+        createKeyMap(width, height)
+        postInvalidateOnAnimation()
+    }
+
+    private fun loadBgBitmapIfNeeded() {
+        val path = if (activeTheme.type == ThemeType.CUSTOM_IMAGE) settings.keyboardImagePath else null
+        if (path == kbBgPath) return
+        kbBgPath = path
+        kbBgBitmap?.recycle()
+        kbBgBitmap = null
+        if (path != null) {
+            kbBgBitmap = try {
+                val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+                BitmapFactory.decodeFile(path, opts)
+            } catch (e: Exception) { null }
+        }
+    }
+
+    private fun drawImageBackground(canvas: Canvas, bmp: Bitmap) {
+        val vw = width.toFloat(); val vh = height.toFloat()
+        val scale = maxOf(vw / bmp.width, vh / bmp.height)
+        val dw = bmp.width * scale; val dh = bmp.height * scale
+        val left = (vw - dw) / 2f; val top = (vh - dh) / 2f
+        canvas.drawBitmap(bmp, null, android.graphics.RectF(left, top, left + dw, top + dh), null)
+        // Keys readable rahen — halka dark overlay
+        canvas.drawColor(Color.argb(130, 0, 0, 0))
+    }
+
 
     fun setOnCustomKeyListener(listener: OnKeyListener) {
         this.keyListener = listener
@@ -561,41 +627,61 @@ class KeyboardView @JvmOverloads constructor(
     private fun drawKey(canvas: Canvas, label: String, rect: Rect) {
         val state = keyStates[label] ?: KeyState.NORMAL
 
-        when (state) {
-            KeyState.WHITE -> {
+            val accent = activeTheme.accentColor
+    when (state) {
+        KeyState.WHITE -> {
+            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
                 keyPaint.color = Color.WHITE
                 textPaint.color = Color.BLACK
                 keyPaint.setShadowLayer(35f, 0f, 0f, Color.WHITE)
+            } else {
+                keyPaint.color = ThemeRepository.lighten(accent, 0.7f)
+                textPaint.color = Color.WHITE
+                keyPaint.setShadowLayer(35f, 0f, 0f, accent)
             }
-            KeyState.PINK -> {
+        }
+        KeyState.PINK -> {
+            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
                 keyPaint.color = Color.MAGENTA
                 textPaint.color = Color.WHITE
                 keyPaint.setShadowLayer(28f, 0f, 0f, Color.MAGENTA)
+            } else {
+                keyPaint.color = accent
+                textPaint.color = Color.WHITE
+                keyPaint.setShadowLayer(28f, 0f, 0f, accent)
             }
-            KeyState.FADE -> {
+        }
+        KeyState.FADE -> {
+            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
                 keyPaint.color = Color.parseColor("#FF6400")
                 textPaint.color = Color.WHITE
                 keyPaint.setShadowLayer(22f, 0f, 0f, Color.parseColor("#FF6400"))
-            }
-            KeyState.NORMAL -> {
-                // FIX: Urdu key highlights blue while Urdu typing is active, so its
-                // state is visible at a glance instead of only readable via its label.
-                if (label == "Urdu" && settings.urduEnabled) {
-                    keyPaint.color = Color.parseColor("#2255CC")
-                    textPaint.color = Color.WHITE
-                } else if (label == "Mic" && isListeningForSpeech) {
-                    keyPaint.color = Color.parseColor("#CC2244")
-                    textPaint.color = Color.WHITE
-                } else if (label.startsWith("sugg")) {
-                    keyPaint.color = Color.parseColor("#151515")
-                    textPaint.color = Color.WHITE
-                } else {
-                    keyPaint.color = Color.parseColor("#080808")
-                    textPaint.color = Color.WHITE
-                }
-                keyPaint.clearShadowLayer()
+            } else {
+                val dark = ThemeRepository.darken(accent, 0.7f)
+                keyPaint.color = dark
+                textPaint.color = Color.WHITE
+                keyPaint.setShadowLayer(22f, 0f, 0f, dark)
             }
         }
+        KeyState.NORMAL -> {
+            if (label == "Urdu" && settings.urduEnabled) {
+                keyPaint.color = Color.parseColor("#2255CC")
+                textPaint.color = Color.WHITE
+            } else if (label == "Mic" && isListeningForSpeech) {
+                keyPaint.color = Color.parseColor("#CC2244")
+                textPaint.color = Color.WHITE
+            } else if (label.startsWith("sugg")) {
+                keyPaint.color = if (activeTheme.type == ThemeType.SOLID)
+                    ThemeRepository.lighten(activeTheme.keyColor, 0.08f)
+                else Color.parseColor("#151515")
+                textPaint.color = activeTheme.textColor
+            } else {
+                keyPaint.color = activeTheme.keyColor
+                textPaint.color = activeTheme.textColor
+            }
+            keyPaint.clearShadowLayer()
+        }
+    }
 
         val l = rect.left.toFloat()
         val t = rect.top.toFloat()
@@ -1353,12 +1439,15 @@ class KeyboardView @JvmOverloads constructor(
             alp = (255 * (1 - p)).toInt()
         }
 
-        fun draw(canvas: Canvas) {
-            val pt = Paint()
-            pt.isAntiAlias = true
-            pt.color = Color.argb(alp, 255, 255, 255)
-            canvas.drawCircle(cx, cy, radius, pt)
-        }
+            fun draw(canvas: Canvas) {
+        val pt = Paint()
+        pt.isAntiAlias = true
+        val acc = activeTheme.accentColor
+        pt.color = if (activeTheme.type == ThemeType.ANIMATED_MULTI)
+            Color.argb(alp, 255, 255, 255)
+        else Color.argb(alp, Color.red(acc), Color.green(acc), Color.blue(acc))
+        canvas.drawCircle(cx, cy, radius, pt)
+    }
     }
 
     private inner class PopupEffect(
