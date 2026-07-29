@@ -260,4 +260,43 @@ class ClipboardGridCanvas @JvmOverloads constructor(
                     postInvalidateOnAnimation(); return true
                 }
                 val hit = cardRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }
-                if (hit != null) { pressedEntryId = hit.third.id; postInvalid
+                if (hit != null) { pressedEntryId = hit.third.id; postInvalidateOnAnimation() }
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = event.y - dragStartY
+                if (!isDraggingScroll && abs(dy) > dragThreshold) {
+                    isDraggingScroll = true; pressedEntryId = null
+                }
+                if (isDraggingScroll) {
+                    scrollOffsetY = (dragStartScrollOffset - dy).coerceIn(0f, maxScrollOffsetY)
+                    postInvalidateOnAnimation()
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val wasDragging = isDraggingScroll
+                isDraggingScroll = false
+                if (!wasDragging) {
+                    if (backButtonRect.contains(event.x.toInt(), event.y.toInt())) {
+                        onBackTapped?.invoke()
+                    } else {
+                        val hit = cardRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }
+                        if (hit != null) {
+                            val (_, pinRect, entry) = hit
+                            if (pinRect.contains(event.x.toInt(), event.y.toInt())) {
+                                onPinTapped?.invoke(entry)
+                            } else {
+                                onClipTapped?.invoke(entry)
+                            }
+                        }
+                    }
+                }
+                pressedEntryId = null
+                postInvalidateOnAnimation()
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+}
