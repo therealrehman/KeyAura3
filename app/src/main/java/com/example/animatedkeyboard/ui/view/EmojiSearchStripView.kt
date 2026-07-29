@@ -13,10 +13,6 @@ import com.example.animatedkeyboard.emoji.EmojiRepository
 import kotlin.math.abs
 import kotlin.math.max
 
-/**
- * Gboard-style emoji search strip — main keyboard ke bilkul upar beth'ta hai.
- * Query main keyboard se type hoti hai (IME route karta hai), results yahan.
- */
 class EmojiSearchStripView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -44,7 +40,7 @@ class EmojiSearchStripView @JvmOverloads constructor(
     private var dragging = false
     private var pressed: EmojiEntry? = null
 
-    private val bgPaint = Paint().apply { color = Color.parseColor("#0B0B10") }
+    private val bgPaint = Paint().apply { color = Color.parseColor("#0A0A10") }
     private val dividerPaint = Paint().apply { color = Color.parseColor("#1C1D26") }
     private val queryPaint = Paint().apply {
         color = Color.parseColor("#9AA0B0"); textSize = dp(13f); isAntiAlias = true
@@ -73,9 +69,9 @@ class EmojiSearchStripView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        val btn = dp(36f).toInt()
+        val btn = dp(38f).toInt()
         closeRect = Rect(w - btn, 0, w, h)
-        resultsLeft = dp(118f)
+        resultsLeft = dp(120f)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -127,25 +123,37 @@ class EmojiSearchStripView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                downX = event.x; startScrollX = scrollX; dragging = false; pressed = null
+                downX = event.x
+                startScrollX = scrollX
+                dragging = false
                 pressed = cellRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }?.second
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - downX
                 if (!dragging && abs(dx) > dp(8f)) { dragging = true; pressed = null }
-                if (dragging) { scrollX = (startScrollX - dx).coerceIn(0f, maxScrollX); postInvalidateOnAnimation() }
+                if (dragging) {
+                    scrollX = (startScrollX - dx).coerceIn(0f, maxScrollX)
+                    postInvalidateOnAnimation()
+                }
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val wasDragging = dragging
                 dragging = false
                 if (!wasDragging) {
-                    if (closeRect.contains(event.x.toInt(), event.y.toInt())) onClose?.invoke()
-                    else if (pressed != null && cellRects.firstOrNull { it.second == pressed }?.first?.contains(event.x.toInt(), event.y.toInt()) == true)
+                    if (closeRect.contains(event.x.toInt(), event.y.toInt())) {
+                        onClose?.invoke()
+                    } else if (pressed != null &&
+                        cellRects.firstOrNull { it.second == pressed }?.first
+                            ?.contains(event.x.toInt(), event.y.toInt()) == true
+                    ) {
                         onEmojiTapped?.invoke(pressed!!)
+                    }
                 }
-                pressed = null; postInvalidateOnAnimation(); return true
+                pressed = null
+                postInvalidateOnAnimation()
+                return true
             }
         }
         return super.onTouchEvent(event)

@@ -14,10 +14,6 @@ import com.example.animatedkeyboard.emoji.EmojiRepository
 import kotlin.math.abs
 import kotlin.math.max
 
-/**
- * Emoji panel — categories + grid. Search icon ab main keyboard kholta hai (Gboard style).
- * Mini keyboard removed — IME handles search via EmojiSearchStripView + main keyboard.
- */
 class EmojiGridCanvas @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -26,7 +22,7 @@ class EmojiGridCanvas @JvmOverloads constructor(
 
     var onEmojiTapped: ((EmojiEntry) -> Unit)? = null
     var onBackTapped: (() -> Unit)? = null
-    var onSearchRequested: (() -> Unit)? = null // NEW: IME main keyboard se search karwayega
+    var onSearchRequested: (() -> Unit)? = null
 
     private val repository by lazy { EmojiRepository.getInstance(context) }
     private val density = resources.displayMetrics.density
@@ -37,22 +33,22 @@ class EmojiGridCanvas @JvmOverloads constructor(
     private val cellSizeDp = 40f
     private val gridPaddingDp = 6f
 
-    private val backgroundPaint = Paint().apply { color = Color.BLACK }
-    private val topBarPaint = Paint().apply { color = Color.parseColor("#0A0A0A") }
-    private val tabBarPaint = Paint().apply { color = Color.parseColor("#101010") }
+    private val backgroundPaint = Paint().apply { color = Color.parseColor("#050508") }
+    private val topBarPaint = Paint().apply { color = Color.parseColor("#0A0A10") }
+    private val tabBarPaint = Paint().apply { color = Color.parseColor("#0D0D14") }
     private val tabIconPaint = Paint().apply { textSize = dp(18f); textAlign = Paint.Align.CENTER; isAntiAlias = true }
     private val tabActiveIndicatorPaint = Paint().apply { color = Color.parseColor("#4488FF"); isAntiAlias = true }
     private val emojiPaint = Paint().apply { textSize = dp(22f); textAlign = Paint.Align.CENTER; isAntiAlias = true }
-    private val emojiPressedBgPaint = Paint().apply { color = Color.parseColor("#1E1E1E"); isAntiAlias = true }
+    private val emojiPressedBgPaint = Paint().apply { color = Color.parseColor("#1E1E28"); isAntiAlias = true }
     private val labelPaint = Paint().apply {
-        color = Color.parseColor("#666666"); textSize = dp(12f); isAntiAlias = true
+        color = Color.parseColor("#666C7C"); textSize = dp(12f); isAntiAlias = true
         typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.LEFT
     }
     private val emptyStatePaint = Paint().apply {
-        color = Color.parseColor("#666666"); textSize = dp(14f); isAntiAlias = true; textAlign = Paint.Align.CENTER
+        color = Color.parseColor("#666C7C"); textSize = dp(14f); isAntiAlias = true; textAlign = Paint.Align.CENTER
     }
-    private val iconButtonPaint = Paint().apply { color = Color.parseColor("#141414"); isAntiAlias = true }
-    private val backIconPaint = Paint().apply {
+    private val iconButtonPaint = Paint().apply { color = Color.parseColor("#16161E"); isAntiAlias = true }
+    private val iconStrokePaint = Paint().apply {
         color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2f)
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = true
     }
@@ -64,17 +60,17 @@ class EmojiGridCanvas @JvmOverloads constructor(
     private fun tabGroups(): List<String> = listOf(recentsLabel) + repository.groups
 
     private fun tabGlyph(group: String): String = when (group) {
-        recentsLabel -> "\uD83D\uDD52"
-        "Smileys & Emotion" -> "\uD83D\uDE00"
-        "People & Body" -> "\uD83D\uDC4B"
-        "Animals & Nature" -> "\uD83D\uDC3B"
-        "Food & Drink" -> "\uD83C\uDF54"
-        "Travel & Places" -> "\u2708\uFE0F"
-        "Activities" -> "\u26BD"
-        "Objects" -> "\uD83D\uDCA1"
-        "Symbols" -> "#\uFE0F\u20E3"
-        "Flags" -> "\uD83C\uDFC1"
-        else -> "\u2022"
+        recentsLabel -> "🕒"
+        "Smileys & Emotion" -> "😀"
+        "People & Body" -> "👋"
+        "Animals & Nature" -> "🐻"
+        "Food & Drink" -> "🍔"
+        "Travel & Places" -> "✈️"
+        "Activities" -> "⚽"
+        "Objects" -> "💡"
+        "Symbols" -> "#️⃣"
+        "Flags" -> "🏁"
+        else -> "•"
     }
 
     private var activeGroup: String = recentsLabel
@@ -180,8 +176,8 @@ class EmojiGridCanvas @JvmOverloads constructor(
         val cx = searchButtonRect.exactCenterX() - dp(1.5f)
         val cy = searchButtonRect.exactCenterY() - dp(1.5f)
         val s = dp(5f)
-        canvas.drawCircle(cx, cy, s, backIconPaint)
-        canvas.drawLine(cx + s * 0.75f, cy + s * 0.75f, cx + s * 1.6f, cy + s * 1.6f, backIconPaint)
+        canvas.drawCircle(cx, cy, s, iconStrokePaint)
+        canvas.drawLine(cx + s * 0.75f, cy + s * 0.75f, cx + s * 1.6f, cy + s * 1.6f, iconStrokePaint)
     }
 
     private fun drawBackButton(canvas: Canvas) {
@@ -190,16 +186,18 @@ class EmojiGridCanvas @JvmOverloads constructor(
             backButtonRect.right.toFloat(), backButtonRect.bottom.toFloat(),
             dp(8f), dp(8f), iconButtonPaint
         )
-        val cx = backButtonRect.exactCenterX(); val cy = backButtonRect.exactCenterY(); val s = dp(6f)
-        canvas.drawLine(cx + s, cy - s, cx - s, cy, backIconPaint)
-        canvas.drawLine(cx - s, cy, cx + s, cy + s, backIconPaint)
+        val cx = backButtonRect.exactCenterX()
+        val cy = backButtonRect.exactCenterY()
+        val s = dp(6f)
+        canvas.drawLine(cx + s, cy - s, cx - s, cy, iconStrokePaint)
+        canvas.drawLine(cx - s, cy, cx + s, cy + s, iconStrokePaint)
     }
 
     private fun drawTabs(canvas: Canvas) {
         for ((rect, group) in tabRects) {
             val isActive = group == activeGroup
             if (pressedTab == group) canvas.drawRect(rect, emojiPressedBgPaint)
-            tabIconPaint.color = if (isActive) Color.WHITE else Color.parseColor("#666666")
+            tabIconPaint.color = if (isActive) Color.WHITE else Color.parseColor("#666C7C")
             canvas.drawText(tabGlyph(group), rect.exactCenterX(),
                 rect.exactCenterY() + tabIconPaint.textSize / 3f, tabIconPaint)
             if (isActive) {
@@ -221,7 +219,9 @@ class EmojiGridCanvas @JvmOverloads constructor(
         canvas.clipRect(0f, gridTop, w.toFloat(), h.toFloat())
 
         if (currentItems.isEmpty()) {
-            canvas.drawText("Emojis you use will show up here", w / 2f, gridTop + dp(40f), emptyStatePaint)
+            val message = if (activeGroup == recentsLabel) "Emojis you use will show up here"
+            else "No emoji in this category"
+            canvas.drawText(message, w / 2f, gridTop + dp(40f), emptyStatePaint)
             canvas.restore()
             maxScrollOffsetY = 0f
             return
@@ -261,10 +261,12 @@ class EmojiGridCanvas @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                dragStartY = event.y; dragStartScrollOffset = scrollOffsetY; isDraggingScroll = false
+                dragStartY = event.y
+                dragStartScrollOffset = scrollOffsetY
+                isDraggingScroll = false
                 if (backButtonRect.contains(event.x.toInt(), event.y.toInt()) ||
-                    searchButtonRect.contains(event.x.toInt(), event.y.toInt()))
-                { postInvalidateOnAnimation(); return true }
+                    searchButtonRect.contains(event.x.toInt(), event.y.toInt())
+                ) { postInvalidateOnAnimation(); return true }
                 val tab = tabRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }
                 if (tab != null) { pressedTab = tab.second; postInvalidateOnAnimation(); return true }
                 val cell = cellRects.firstOrNull { it.first.contains(event.x.toInt(), event.y.toInt()) }
@@ -274,7 +276,9 @@ class EmojiGridCanvas @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 val dy = event.y - dragStartY
                 if (!isDraggingScroll && abs(dy) > dragThreshold) {
-                    isDraggingScroll = true; pressedEntry = null; pressedTab = null
+                    isDraggingScroll = true
+                    pressedEntry = null
+                    pressedTab = null
                 }
                 if (isDraggingScroll) {
                     scrollOffsetY = (dragStartScrollOffset - dy).coerceIn(0f, maxScrollOffsetY)
@@ -287,8 +291,10 @@ class EmojiGridCanvas @JvmOverloads constructor(
                 isDraggingScroll = false
                 if (!wasDragging) {
                     when {
-                        backButtonRect.contains(event.x.toInt(), event.y.toInt()) -> onBackTapped?.invoke()
-                        searchButtonRect.contains(event.x.toInt(), event.y.toInt()) -> onSearchRequested?.invoke()
+                        backButtonRect.contains(event.x.toInt(), event.y.toInt()) ->
+                            onBackTapped?.invoke()
+                        searchButtonRect.contains(event.x.toInt(), event.y.toInt()) ->
+                            onSearchRequested?.invoke()
                         pressedTab != null -> {
                             val idx = tabGroups().indexOf(pressedTab)
                             if (idx >= 0) showCategory(idx)
@@ -296,7 +302,10 @@ class EmojiGridCanvas @JvmOverloads constructor(
                         pressedEntry != null -> onEmojiTapped?.invoke(pressedEntry!!)
                     }
                 }
-                pressedEntry = null; pressedTab = null; postInvalidateOnAnimation(); return true
+                pressedEntry = null
+                pressedTab = null
+                postInvalidateOnAnimation()
+                return true
             }
         }
         return super.onTouchEvent(event)

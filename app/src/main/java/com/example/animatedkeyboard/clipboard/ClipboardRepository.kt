@@ -19,11 +19,8 @@ data class ClipboardEntry(
     val timestamp: Long
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
-        put("id", id)
-        put("type", type)
-        put("content", content)
-        put("pinned", pinned)
-        put("timestamp", timestamp)
+        put("id", id); put("type", type); put("content", content)
+        put("pinned", pinned); put("timestamp", timestamp)
     }
 
     companion object {
@@ -53,8 +50,7 @@ class ClipboardRepository private constructor(context: Context) {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    @Volatile
-    private var cache: List<ClipboardEntry>? = null
+    @Volatile private var cache: List<ClipboardEntry>? = null
 
     private val imagesDir: File by lazy {
         File(appContext.filesDir, "clipboard_images").apply { mkdirs() }
@@ -74,23 +70,13 @@ class ClipboardRepository private constructor(context: Context) {
 
     fun addText(text: String, onAdded: ((ClipboardEntry) -> Unit)? = null) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty()) {
-            return
-        }
+        if (trimmed.isEmpty()) return
         executor.execute {
-            val capped = if (trimmed.length > maxStoredChars) {
-                trimmed.substring(0, maxStoredChars)
-            } else {
-                trimmed
-            }
+            val capped = if (trimmed.length > maxStoredChars) trimmed.substring(0, maxStoredChars) else trimmed
             val entries = getAll().toMutableList()
-            val first = entries.firstOrNull()
-            if (first != null && first.type == "text" && first.content == capped) {
-                return@execute
-            }
             entries.removeAll { it.type == "text" && it.content == capped }
             val entry = ClipboardEntry(
-                id = "c" + System.currentTimeMillis(),
+                id = "c${System.currentTimeMillis()}",
                 type = "text",
                 content = capped,
                 pinned = false,
@@ -98,36 +84,29 @@ class ClipboardRepository private constructor(context: Context) {
             )
             entries.add(0, entry)
             trimAndSave(entries)
-            if (onAdded != null) {
-                mainHandler.post { onAdded(entry) }
-            }
+            onAdded?.let { cb -> mainHandler.post { cb(entry) } }
         }
     }
 
     fun addImage(uri: Uri, resolver: ContentResolver) {
         executor.execute {
             try {
-                val fileName = "clip_" + System.currentTimeMillis() + ".png"
+                val fileName = "clip_${System.currentTimeMillis()}.png"
                 val outFile = File(imagesDir, fileName)
                 resolver.openInputStream(uri)?.use { input ->
-                    outFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+                    outFile.outputStream().use { output -> input.copyTo(output) }
                 } ?: return@execute
                 val entries = getAll().toMutableList()
-                entries.add(
-                    0,
-                    ClipboardEntry(
-                        id = "c" + System.currentTimeMillis(),
-                        type = "image",
-                        content = outFile.absolutePath,
-                        pinned = false,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
+                entries.add(0, ClipboardEntry(
+                    id = "c${System.currentTimeMillis()}",
+                    type = "image",
+                    content = outFile.absolutePath,
+                    pinned = false,
+                    timestamp = System.currentTimeMillis()
+                ))
                 trimAndSave(entries)
             } catch (e: Exception) {
-                Log.w("ClipboardRepository", "Failed to save clipboard image: " + e.message)
+                Log.w("ClipboardRepository", "Failed to save clipboard image: ${e.message}")
             }
         }
     }
@@ -136,9 +115,7 @@ class ClipboardRepository private constructor(context: Context) {
         executor.execute {
             val entries = getAll().toMutableList()
             val idx = entries.indexOfFirst { it.id == id }
-            if (idx == -1) {
-                return@execute
-            }
+            if (idx == -1) return@execute
             entries[idx] = entries[idx].copy(pinned = !entries[idx].pinned)
             saveAll(entries)
         }
@@ -150,11 +127,8 @@ class ClipboardRepository private constructor(context: Context) {
             val removed = entries.find { it.id == id }
             entries.removeAll { it.id == id }
             saveAll(entries)
-            if (removed != null && removed.type == "image") {
-                try {
-                    File(removed.content).delete()
-                } catch (_: Exception) {
-                }
+            if (removed?.type == "image") {
+                try { File(removed.content).delete() } catch (_: Exception) {}
             }
         }
     }
@@ -172,24 +146,17 @@ class ClipboardRepository private constructor(context: Context) {
         val evicted = unpinned.sortedByDescending { it.timestamp }.drop(maxUnpinned)
         for (e in evicted) {
             if (e.type == "image") {
-                try {
-                    File(e.content).delete()
-                } catch (_: Exception) {
-                }
+                try { File(e.content).delete() } catch (_: Exception) {}
             }
         }
         saveAll(pinned + keptUnpinned)
     }
 
     companion object {
-        @Volatile
-        private var instance: ClipboardRepository? = null
-
+        @Volatile private var instance: ClipboardRepository? = null
         fun getInstance(context: Context): ClipboardRepository {
             return instance ?: synchronized(this) {
-                instance ?: ClipboardRepository(context.applicationContext).also {
-                    instance = it
-                }
+                instance ?: ClipboardRepository(context.applicationContext).also { instance = it }
             }
         }
     }

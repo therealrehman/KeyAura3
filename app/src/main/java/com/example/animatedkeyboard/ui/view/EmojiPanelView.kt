@@ -16,7 +16,7 @@ class EmojiPanelView @JvmOverloads constructor(
     interface OnEmojiPanelListener {
         fun onEmojiSelected(emoji: String)
         fun onBackToKeyboard()
-        fun onSearchRequested() // NEW
+        fun onSearchRequested()
     }
 
     private var listener: OnEmojiPanelListener? = null
@@ -28,14 +28,14 @@ class EmojiPanelView @JvmOverloads constructor(
     }
 
     init {
-        setBackgroundColor(Color.BLACK)
+        setBackgroundColor(Color.parseColor("#050508"))
         gridView = EmojiGridCanvas(context)
         gridView.onEmojiTapped = { entry ->
             repository.recordUsage(entry)
             listener?.onEmojiSelected(entry.character)
         }
         gridView.onBackTapped = { listener?.onBackToKeyboard() }
-        gridView.onSearchRequested = { listener?.onSearchRequested() } // NEW
+        gridView.onSearchRequested = { listener?.onSearchRequested() }
         addView(gridView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
@@ -43,8 +43,11 @@ class EmojiPanelView @JvmOverloads constructor(
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
         val dm = resources.displayMetrics
         val isLandscape = dm.widthPixels > dm.heightPixels
-        val desiredHeight = if (isLandscape) (dm.heightPixels * 0.30f).toInt()
-        else (dm.heightPixels * 0.35f).toInt()
+        val desiredHeight = if (isLandscape) {
+            (dm.heightPixels * 0.30f).toInt()
+        } else {
+            (dm.heightPixels * 0.35f).toInt()
+        }
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(desiredHeight, View.MeasureSpec.EXACTLY)
@@ -54,9 +57,5 @@ class EmojiPanelView @JvmOverloads constructor(
     fun onPanelShown() {
         gridView.refreshRecents()
         gridView.resetToDefaultCategory()
-    }
-
-    fun clearSearchFocus() {
-        // No-op now — search lives in IME, not panel
     }
 }
