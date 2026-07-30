@@ -30,20 +30,20 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
-    private val topBarHeightDp = 44f
-    private val cardHeightDp = 86f
+    private val topBarHeightDp = 40f
+    private val cardHeightDp = 84f
     private val cardPaddingDp = 6f
     private val columns = 2
 
-    private val backgroundPaint = Paint().apply { color = Color.parseColor("#050508") }
-    private val topBarPaint = Paint().apply { color = Color.parseColor("#0A0A10") }
+    private val backgroundPaint = Paint().apply { color = Color.BLACK }
+    private val topBarPaint = Paint().apply { color = Color.parseColor("#0A0A0A") }
     private val titlePaint = Paint().apply {
         color = Color.WHITE; textSize = dp(16f); isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
     }
-    private val cardBgPaint = Paint().apply { color = Color.parseColor("#121218"); isAntiAlias = true }
-    private val cardPressedBgPaint = Paint().apply { color = Color.parseColor("#1E1E2A"); isAntiAlias = true }
+    private val cardBgPaint = Paint().apply { color = Color.parseColor("#141419"); isAntiAlias = true }
+    private val cardPressedBgPaint = Paint().apply { color = Color.parseColor("#232330"); isAntiAlias = true }
     private val cardBorderPaint = Paint().apply {
-        color = Color.parseColor("#1E1E28"); style = Paint.Style.STROKE
+        color = Color.parseColor("#23232E"); style = Paint.Style.STROKE
         strokeWidth = dp(1f); isAntiAlias = true
     }
     private val textPreviewPaint = Paint().apply {
@@ -53,14 +53,14 @@ class ClipboardGridCanvas @JvmOverloads constructor(
         color = Color.parseColor("#5A5F70"); textSize = dp(10f); isAntiAlias = true
     }
     private val emptyStatePaint = Paint().apply {
-        color = Color.parseColor("#666C7C"); textSize = dp(14f); isAntiAlias = true; textAlign = Paint.Align.CENTER
+        color = Color.parseColor("#666666"); textSize = dp(14f); isAntiAlias = true; textAlign = Paint.Align.CENTER
     }
     private val pinIconPaint = Paint().apply { isAntiAlias = true }
-    private val iconStrokePaint = Paint().apply {
+    private val backIconPaint = Paint().apply {
         color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2f)
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = true
     }
-    private val iconButtonPaint = Paint().apply { color = Color.parseColor("#16161E"); isAntiAlias = true }
+    private val iconButtonPaint = Paint().apply { color = Color.parseColor("#141414"); isAntiAlias = true }
 
     private var entries: List<ClipboardEntry> = emptyList()
     private var scrollOffsetY = 0f
@@ -104,7 +104,7 @@ class ClipboardGridCanvas @JvmOverloads constructor(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         val btnSize = dp(32f).toInt()
-        val margin = dp(6f).toInt()
+        val margin = dp(4f).toInt()
         backButtonRect = Rect(w - btnSize - margin, margin, w - margin, margin + btnSize)
     }
 
@@ -129,8 +129,8 @@ class ClipboardGridCanvas @JvmOverloads constructor(
             dp(8f), dp(8f), iconButtonPaint
         )
         val cx = backButtonRect.exactCenterX(); val cy = backButtonRect.exactCenterY(); val s = dp(6f)
-        canvas.drawLine(cx + s, cy - s, cx - s, cy, iconStrokePaint)
-        canvas.drawLine(cx - s, cy, cx + s, cy + s, iconStrokePaint)
+        canvas.drawLine(cx + s, cy - s, cx - s, cy, backIconPaint)
+        canvas.drawLine(cx - s, cy, cx + s, cy + s, backIconPaint)
     }
 
     private fun drawGrid(canvas: Canvas, w: Int, h: Int, top: Float) {
@@ -189,25 +189,27 @@ class ClipboardGridCanvas @JvmOverloads constructor(
         if (entry.type == "image") {
             val bmp = bitmapFor(entry.content)
             if (bmp != null) {
-                val thumbH = cardRect.height() - dp(28f).toInt()
+                val thumbH = cardRect.height() - dp(26f).toInt()
                 val thumbW = thumbH * bmp.width / max(1, bmp.height)
                 val dst = Rect(contentLeft.toInt(), cardRect.top + dp(8f).toInt(),
-                    contentLeft.toInt() + minOf(thumbW, cardRect.width() / 2),
-                    cardRect.top + dp(8f).toInt() + thumbH)
+                    contentLeft.toInt() + minOf(thumbW, cardRect.width() / 2), cardRect.top + dp(8f).toInt() + thumbH)
                 canvas.drawBitmap(bmp, Rect(0, 0, bmp.width, bmp.height), dst, null)
             } else {
                 canvas.drawText("🖼 image", contentLeft, cardRect.exactCenterY(), textPreviewPaint)
             }
         } else {
+            // FIX: preview sirf 3 lines / ~90 chars — poora text memory me hai, draw nahi hota
             val preview = entry.content.replace(Regex("\\s+"), " ").trim().take(90)
-            drawWrappedText(canvas, preview, contentLeft, cardRect.top + dp(14f),
+            drawWrappedText(canvas, preview, contentLeft, cardRect.top + dp(16f),
                 contentRight, dp(14f), 3, textPreviewPaint)
         }
 
+        // Relative time
         canvas.drawText(relativeTime(entry.timestamp), contentLeft,
-            cardRect.bottom - dp(7f), timePaint)
+            cardRect.bottom - dp(6f), timePaint)
 
-        pinIconPaint.color = if (entry.pinned) Color.parseColor("#4488FF") else Color.parseColor("#3A3A46")
+        // Pin dot
+        pinIconPaint.color = if (entry.pinned) Color.parseColor("#4488FF") else Color.parseColor("#3A3A44")
         pinIconPaint.style = if (entry.pinned) Paint.Style.FILL else Paint.Style.STROKE
         pinIconPaint.strokeWidth = dp(1.5f)
         canvas.drawCircle(pinRect.exactCenterX(), pinRect.exactCenterY(), pinRect.width() / 2.6f, pinIconPaint)

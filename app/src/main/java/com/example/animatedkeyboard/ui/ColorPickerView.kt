@@ -10,6 +10,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 
+/** Compact HSV color picker: upar SV square, neeche hue bar. */
 class ColorPickerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -32,7 +33,7 @@ class ColorPickerView @JvmOverloads constructor(
         style = Paint.Style.STROKE; strokeWidth = dp(2.5f); color = Color.WHITE; isAntiAlias = true
     }
     private val borderPaint = Paint().apply {
-        style = Paint.Style.STROKE; strokeWidth = dp(1f); color = Color.parseColor("#333340"); isAntiAlias = true
+        style = Paint.Style.STROKE; strokeWidth = dp(1f); color = Color.parseColor("#333"); isAntiAlias = true
     }
 
     private val hueBarHeight get() = dp(28f)
@@ -49,7 +50,7 @@ class ColorPickerView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val desired = (w * 0.72f + hueBarHeight + hueBarTopMargin + dp(8f)).toInt()
+        val desired = (w * 0.75f + hueBarHeight + hueBarTopMargin + dp(8f)).toInt()
         setMeasuredDimension(w, desired)
     }
 
@@ -58,6 +59,7 @@ class ColorPickerView @JvmOverloads constructor(
         val w = width.toFloat()
         val svHeight = height - hueBarHeight - hueBarTopMargin - dp(8f)
 
+        // SV square: horizontal white->hue, vertical transparent->black
         val pureHue = Color.HSVToColor(floatArrayOf(hue, 1f, 1f))
         svPaint.shader = LinearGradient(0f, 0f, w, 0f, Color.WHITE, pureHue, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, svHeight, svPaint)
@@ -65,16 +67,19 @@ class ColorPickerView @JvmOverloads constructor(
         canvas.drawRect(0f, 0f, w, svHeight, svOverlayPaint)
         canvas.drawRect(0f, 0f, w, svHeight, borderPaint)
 
+        // SV indicator
         val ix = sat * w
         val iy = (1f - value) * svHeight
         canvas.drawCircle(ix, iy, dp(9f), indicatorPaint)
 
+        // Hue bar
         val hueTop = svHeight + hueBarTopMargin
         val hueColors = IntArray(7) { i -> Color.HSVToColor(floatArrayOf(i * 60f, 1f, 1f)) }
         huePaint.shader = LinearGradient(0f, hueTop, w, hueTop, hueColors, null, Shader.TileMode.CLAMP)
         canvas.drawRoundRect(0f, hueTop, w, hueTop + hueBarHeight, dp(8f), dp(8f), huePaint)
         canvas.drawRoundRect(0f, hueTop, w, hueTop + hueBarHeight, dp(8f), dp(8f), borderPaint)
 
+        // Hue indicator
         val hx = (hue / 360f) * w
         canvas.drawCircle(hx, hueTop + hueBarHeight / 2f, dp(10f), indicatorPaint)
     }

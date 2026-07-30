@@ -110,7 +110,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         })
         clipboardPanelView.visibility = View.GONE
 
-        // FIX: Correct listener interface for GamePanel
         gamePanelView = GamePanelView(this)
         gamePanelView.setOnGamePanelListener(object : GamePanelView.OnGamePanelListener {
             override fun onBackToKeyboard() { showKeyboard() }
@@ -198,6 +197,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         } else {
             val text = item.coerceToText(this)?.toString()
             if (!text.isNullOrBlank()) {
+                // FIX: Background thread par save + suggestion sirf preview ke saath
                 clipboardRepo.addText(text) { entry ->
                     if (::keyboardView.isInitialized) keyboardView.showClipboardSuggestion(entry.content)
                 }
@@ -318,7 +318,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         currentInputEditorInfo = info
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         if (::keyboardView.isInitialized) {
-            keyboardView.refreshSoundEngineTune()  // also refreshes volume
+            keyboardView.refreshSoundEngineTune()
             keyboardView.refreshTheme()
             keyboardView.setImeAction(resolveEditorAction(info))
         }

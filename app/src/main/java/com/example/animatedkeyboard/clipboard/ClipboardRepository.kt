@@ -33,9 +33,7 @@ data class ClipboardEntry(
                     pinned = o.optBoolean("pinned", false),
                     timestamp = o.optLong("timestamp", 0L)
                 )
-            } catch (e: Exception) {
-                null
-            }
+            } catch (e: Exception) { null }
         }
     }
 }
@@ -74,6 +72,7 @@ class ClipboardRepository private constructor(context: Context) {
         executor.execute {
             val capped = if (trimmed.length > maxStoredChars) trimmed.substring(0, maxStoredChars) else trimmed
             val entries = getAll().toMutableList()
+            if (entries.firstOrNull()?.let { it.type == "text" && it.content == capped } == true) return@execute
             entries.removeAll { it.type == "text" && it.content == capped }
             val entry = ClipboardEntry(
                 id = "c${System.currentTimeMillis()}",
