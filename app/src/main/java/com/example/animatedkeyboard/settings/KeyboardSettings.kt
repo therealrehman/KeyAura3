@@ -79,6 +79,10 @@ class KeyboardSettings private constructor(context: Context) {
     }
 
     // FIX: Same lightweight learning pattern for English suggestions.
+    fun englishWordBoost(word: String): Int = prefs.getInt("eng_boost_$word", 0)
+
+    fun bumpEnglishWord(word: String) { val c = prefs.getInt("eng_boost_$word", 0); prefs.edit().putInt("eng_boost_$word", c + 1).apply() }
+
     fun englishWordPreference(prefixLower: String): String? =
         prefs.getString("eng_pref_$prefixLower", null)
 
