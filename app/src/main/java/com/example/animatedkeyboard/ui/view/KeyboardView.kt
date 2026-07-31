@@ -416,6 +416,7 @@ class KeyboardView @JvmOverloads constructor(
         keyCodes["=\\<"] = -7
         keyCodes["Urdu"] = -8
         keyCodes["اردو"] = -12
+        keyCodes["KbSettings"] = -15
 
         refreshTheme()
     }
@@ -537,15 +538,16 @@ class KeyboardView @JvmOverloads constructor(
         keyMap["Game"] = Rect(gameLeft, stripTop, gameRight, stripBottom)
         keyStates.putIfAbsent("Game", KeyState.NORMAL)
 
-        // FIX: Mic docked at the strip's right border, always visible.
+        // Mic + Settings both docked at the strip's right border.
+        val settingsKeyWidth = dp(28f).toInt()
         val micKeyWidth = dp(32f).toInt()
-        val micLeft = width - sideMargin - micKeyWidth
-        keyMap["Mic"] = Rect(micLeft, stripTop, width - sideMargin, stripBottom)
+        val settingsLeft = width - sideMargin - settingsKeyWidth
+        val micLeft = settingsLeft - hGap - micKeyWidth
+        keyMap["Mic"] = Rect(micLeft, stripTop, micLeft + micKeyWidth, stripBottom)
         keyStates.putIfAbsent("Mic", KeyState.NORMAL)
+        keyMap["KbSettings"] = Rect(settingsLeft, stripTop, width - sideMargin, stripBottom)
+        keyStates.putIfAbsent("KbSettings", KeyState.NORMAL)
 
-        // FIX: a just-copied clip takes over the chip area as a single quick-
-        // paste suggestion; tapping it (or resuming normal typing) reverts to
-        // regular Urdu/English suggestions.
         val chipsLeft = gameRight + hGap
         val chipsAvailableWidth = micLeft - hGap - chipsLeft
         if (chipsAvailableWidth <= 0) return
@@ -767,6 +769,7 @@ class KeyboardView @JvmOverloads constructor(
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
+            "KbSettings" -> drawSettingsIcon(canvas, rect, textPaint.color)
             else -> if (label == "clipSugg") {
                 drawFittedChipText(canvas, pendingClipboardPreview, rect)
             } else if (label.startsWith("sugg")) {
@@ -827,6 +830,28 @@ class KeyboardView @JvmOverloads constructor(
         canvas.drawArc(archRect, 20f, 140f, false, p)
         canvas.drawLine(cx, archTop + dp(4f), cx, cy + capsuleH / 2 + dp(3f), p)
         canvas.drawLine(cx - dp(3.5f), cy + capsuleH / 2 + dp(3f), cx + dp(3.5f), cy + capsuleH / 2 + dp(3f), p)
+    }
+
+    private fun drawSettingsIcon(canvas: Canvas, rect: Rect, color: Int) {
+        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
+        val outerR = dp(6.5f); val innerR = dp(4f); val toothCount = 8
+        val p = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
+        val path = android.graphics.Path()
+        for (i in 0 until toothCount * 2) {
+            val angle = Math.toRadians((i * 360.0 / (toothCount * 2)) - 90.0)
+            val r = if (i % 2 == 0) outerR else outerR - dp(2.5f)
+            val x = cx + r * Math.cos(angle).toFloat()
+            val y = cy + r * Math.sin(angle).toFloat()
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        path.close()
+        canvas.drawPath(path, p)
+        val holePaint = Paint().apply {
+            this.color = android.graphics.Color.TRANSPARENT
+            style = Paint.Style.FILL; isAntiAlias = true
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        }
+        canvas.drawCircle(cx, cy, innerR, holePaint)
     }
 
     private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
@@ -1398,6 +1423,9 @@ class KeyboardView @JvmOverloads constructor(
             "Mic" -> {
                 finalizeRomanBuffer()
                 keyListener?.onKey(-11, "Mic")
+            }
+            "KbSettings" -> {
+                keyListener?.onKey(-15, "KbSettings")
             }
             else -> {
                 // FIX: native Urdu script layout — commit the character as-is and

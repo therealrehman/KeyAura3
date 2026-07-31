@@ -82,6 +82,12 @@ class AnimatedKeyboardIME : InputMethodService() {
                     -10 -> showClipboardPanel()
                     -11 -> toggleSpeechRecognition()
                     -14 -> showGamePanel()
+                    -15 -> {
+                        val intent = Intent(this, MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        }
+                        startActivity(intent)
+                    }
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)
