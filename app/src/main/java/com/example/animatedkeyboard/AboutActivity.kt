@@ -448,7 +448,7 @@ You can also leave a review on the Play Store — it helps other users discover 
         val bodyTv = TextView(this).apply {
             textSize = 13f
             setTextColor(MUTED)
-            lineSpacingMultiplier = 1.5f
+            setLineSpacing(0f, 1.5f)
             if (clickable != null) {
                 val ss = SpannableString(body)
                 val start = body.indexOf(clickable)
