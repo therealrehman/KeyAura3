@@ -216,11 +216,7 @@ class KeyboardView @JvmOverloads constructor(
                 animationEngine.themeAnimationsEnabled = settings.animationEnabled
             }
             ThemeType.SOLID -> {
-                animationEngine.themeAnimationsEnabled = false // simple theme — no animation
-            }
-            ThemeType.ANIMATED_SINGLE -> {
-                animationEngine.singleThemeColor = settings.customThemeColor
-                animationEngine.themeAnimationsEnabled = settings.animationEnabled
+                animationEngine.themeAnimationsEnabled = false
             }
             ThemeType.CUSTOM_IMAGE -> {
                 animationEngine.singleThemeColor = null

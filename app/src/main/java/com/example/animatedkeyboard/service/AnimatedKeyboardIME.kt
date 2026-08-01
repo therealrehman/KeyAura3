@@ -83,7 +83,9 @@ class AnimatedKeyboardIME : InputMethodService() {
                     -11 -> toggleSpeechRecognition()
                     -14 -> showGamePanel()
                     -15 -> {
-                        val intent = Intent("com.example.animatedkeyboard.MAIN").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+                        val intent = Intent().apply {
+                            setClassName(packageName, "com.example.animatedkeyboard.MainActivity")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         }
                         startActivity(intent)
                     }

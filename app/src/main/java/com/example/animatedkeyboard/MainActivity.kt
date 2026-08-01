@@ -60,11 +60,19 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.btnChoose).setOnClickListener {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
-        findViewById<LinearLayout>(R.id.btnAbout).setOnClickListener {
-            startActivity(Intent(this, AboutActivity::class.java))
-        }
-        findViewById<ImageButton>(R.id.btnMenu).setOnClickListener {
-            startActivity(Intent(this, AboutActivity::class.java))
+        findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { v ->
+            val popup = android.widget.PopupMenu(this, v)
+            popup.menu.add(0, 1, 0, "About KeyAura")
+            popup.menu.add(0, 2, 1, "Privacy Policy")
+            popup.menu.add(0, 3, 2, "Terms & Conditions")
+            popup.menu.add(0, 4, 3, "Contact Us")
+            popup.setOnMenuItemClickListener { item ->
+                val intent = Intent(this, AboutActivity::class.java)
+                intent.putExtra("tab", item.itemId - 1)
+                startActivity(intent)
+                true
+            }
+            popup.show()
         }
         findViewById<LinearLayout>(R.id.btnToggleSound).setOnClickListener {
             settings.soundEnabled = !settings.soundEnabled
