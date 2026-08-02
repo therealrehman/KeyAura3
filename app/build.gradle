@@ -3,6 +3,12 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def signingProps = new Properties()
+def signingFile = rootProject.file('signing.properties')
+if (signingFile.exists()) {
+    signingProps.load(new FileInputStream(signingFile))
+}
+
 android {
     namespace 'com.example.animatedkeyboard'
     compileSdk 34
@@ -17,10 +23,10 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(project.findProperty("STORE_FILE") ?: "keyaura-release.jks")
-            storePassword project.findProperty("STORE_PASSWORD") ?: ""
-            keyAlias project.findProperty("KEY_ALIAS") ?: ""
-            keyPassword project.findProperty("KEY_PASSWORD") ?: ""
+            storeFile file(signingProps['storeFile'] ?: 'keyaura-release.jks')
+            storePassword signingProps['storePassword'] ?: ''
+            keyAlias signingProps['keyAlias'] ?: ''
+            keyPassword signingProps['keyPassword'] ?: ''
         }
     }
 
