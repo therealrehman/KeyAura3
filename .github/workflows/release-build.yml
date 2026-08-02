@@ -25,7 +25,7 @@ jobs:
         run: echo "$KEYSTORE_BASE64" | base64 -d > app/keyaura-release.jks
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease -PSTORE_FILE=keyaura-release.jks -PSTORE_PASSWORD=${{ secrets.STORE_PASSWORD }} -PKEY_ALIAS=${{ secrets.KEY_ALIAS }} -PKEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease -PSTORE_FILE=keyaura-release.jks -PSTORE_PASSWORD=${{ secrets.STORE_PASSWORD }} -PKEY_ALIAS=${{ secrets.KEY_ALIAS }} -PKEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
