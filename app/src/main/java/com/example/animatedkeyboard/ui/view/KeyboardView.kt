@@ -302,6 +302,7 @@ class KeyboardView @JvmOverloads constructor(
     private val pointerPopups = mutableMapOf<Int, PopupEffect>()
     private var primaryPointerId = -1
     private var lastSwipeKeyLabel: String? = null // FIX: avoids re-triggering the same note while lingering on one key mid-swipe
+    private var lastAnimatedSwipeKey: String? = null // FIX: avoids multiple animations on same key during swipe hold
     // FIX: click sound is deferred briefly so a starting swipe can cancel it —
     // otherwise every swipe gesture always played one plain click at its start.
     private val pendingClickRunnables = mutableMapOf<Int, Runnable>()
@@ -1042,6 +1043,7 @@ class KeyboardView @JvmOverloads constructor(
                 isSwiping = false
                 isLongPress = false
                 lastSwipeKeyLabel = null
+                lastAnimatedSwipeKey = null
                 handleTouchDown(primaryPointerId, event.x, event.y, isPrimary = true)
                 return true
             }
@@ -1102,6 +1104,7 @@ class KeyboardView @JvmOverloads constructor(
                             touchStartY = event.getY(i)
                             isSwiping = false
                             lastSwipeKeyLabel = null
+                            lastAnimatedSwipeKey = null
                             break
                         }
                     }
@@ -1256,14 +1259,16 @@ class KeyboardView @JvmOverloads constructor(
             hitTestRect.set(rect)
             hitTestRect.inset(-touchSlopPx, -touchSlopPx)
             if (hitTestRect.contains(x.toInt(), y.toInt())) {
-                animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
-                pressedKeys[label] = System.currentTimeMillis()
-                postInvalidateOnAnimation()
+                // FIX: only trigger animation ONCE per key during a swipe.
+                // Previously triggerAnimation fired on every ACTION_MOVE frame,
+                // so holding a finger on one key spammed dozens of bursts.
+                if (label != lastAnimatedSwipeKey) {
+                    lastAnimatedSwipeKey = label
+                    animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
+                    pressedKeys[label] = System.currentTimeMillis()
+                    postInvalidateOnAnimation()
+                }
 
-                // FIX: continuous musical swipe sound — plays one note of a
-                // pentatonic scale each time the finger glides onto a new key,
-                // chosen by horizontal position so any left-to-right swipe
-                // (on any row) plays a smooth ascending/descending run.
                 if (settings.soundEnabled && label != lastSwipeKeyLabel && width > 0) {
                     lastSwipeKeyLabel = label
                     val noteIndex = ((rect.exactCenterX() / width.toFloat()) * soundEngine.noteCount)
