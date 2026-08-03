@@ -17,6 +17,8 @@ import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
+import android.widget.Toast
+import com.example.animatedkeyboard.ads.UnityAdsManager
 import com.example.animatedkeyboard.clipboard.ClipboardEntry
 import com.example.animatedkeyboard.clipboard.ClipboardRepository
 import com.example.animatedkeyboard.emoji.EmojiRepository
@@ -299,6 +301,16 @@ class AnimatedKeyboardIME : InputMethodService() {
     }
 
     private fun showGamePanel() {
+        // Check if game is unlocked via rewarded ad (12-hour window)
+        val adsManager = UnityAdsManager.getInstance(this)
+        if (!adsManager.isUnlocked(UnityAdsManager.RewardType.GAME)) {
+            Toast.makeText(
+                this,
+                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 12h 🎮",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         exitEmojiSearch()
         keyboardView.visibility = View.GONE
         emojiPanelView.visibility = View.GONE

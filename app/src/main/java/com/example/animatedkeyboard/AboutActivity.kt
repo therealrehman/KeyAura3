@@ -178,20 +178,21 @@ Version: See Google Play for latest
     // ─── PRIVACY POLICY ─────────────────────────────────────────────────────
 
     private fun showPrivacy() {
-        hero("🔒", "Privacy Policy", "Last updated: July 31, 2026")
+        hero("🔒", "Privacy Policy", "Last updated: August 3, 2026")
 
         sectionCard("📌 Introduction", """
 OKLabs ("we", "us", "our") built KeyAura as a free Android keyboard app. This Privacy Policy explains how we handle your information. By using KeyAura, you agree to this policy.
 
 We believe privacy is a right, not a feature. KeyAura is designed from the ground up to process everything locally on your device.
+
+KeyAura is free and supported by ads. We use Unity Ads to display advertisements within the app. You can unlock premium features (animated themes, swipe tunes, game) by watching short rewarded ads.
         """.trimIndent(), ACCENT)
 
         sectionCard("✅ What We NEVER Do", """
 We NEVER:
 • Record, read, log, or transmit what you type
 • Store your passwords, messages, or personal conversations
-• Sell your data to any third party
-• Share your data with advertisers or data brokers
+• Sell your personal data to any third party
 • Access your contacts, photos, or files
 • Track your location
 • Collect any personally identifiable information
@@ -226,20 +227,22 @@ VIBRATION
 For haptic feedback on key presses. No data involved.
 
 INTERNET
-Required by Android for the app to run on modern devices. KeyAura itself makes no outbound connections to OKLabs servers.
+Required for displaying ads via Unity Ads and for general app functionality. KeyAura itself makes no outbound connections to OKLabs servers. Ad network data is governed by Unity's own privacy policy.
         """.trimIndent(), WARNING)
 
         sectionCard("🔗 Third-Party Services", """
+Unity Ads (ironSource/Unity Technologies): KeyAura displays ads powered by Unity Ads to support free access to the app. Unity Ads may collect device identifiers, IP address, and ad interaction data to serve relevant ads. See Unity's Privacy Policy at: unity.com/legal/privacy-policy
+
+Banner ads are shown in the app UI. Rewarded video ads let you unlock animated themes, swipe tunes, and the mini-game for 12 hours each — completely optional.
+
 Google Play Services: The app is distributed via Google Play, which may collect install/crash metadata per Google's own Privacy Policy.
 
 What we DO NOT use:
 ✗ Firebase Analytics
 ✗ Firebase Crashlytics  
-✗ AdMob or any ad network
+✗ AdMob
 ✗ Facebook SDK
-✗ Any analytics or tracking SDK
-
-There are NO ads in KeyAura. We do not monetize through advertising.
+✗ Any additional analytics or tracking SDK
         """.trimIndent(), MUTED)
 
         sectionCard("👶 Children's Privacy", """
