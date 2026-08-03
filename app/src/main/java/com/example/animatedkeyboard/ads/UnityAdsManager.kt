@@ -73,6 +73,17 @@ class UnityAdsManager private constructor(context: Context) {
         prefs.edit().putLong(unlockKey(type), System.currentTimeMillis()).apply()
     }
 
+    /**
+     * Grant unlock for multiple types at once — used when one rewarded ad should
+     * unlock both THEMES and TUNES simultaneously (e.g. from the keyboard chip CTA).
+     */
+    fun grantMultipleUnlocks(vararg types: RewardType) {
+        val editor = prefs.edit()
+        val now = System.currentTimeMillis()
+        for (type in types) editor.putLong(unlockKey(type), now)
+        editor.apply()
+    }
+
     // ── Initialization ────────────────────────────────────────────────────────
 
     fun initialize(context: Context) {

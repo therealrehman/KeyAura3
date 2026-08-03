@@ -91,6 +91,17 @@ class AnimatedKeyboardIME : InputMethodService() {
                         }
                         startActivity(intent)
                     }
+                    -16 -> {
+                        // "Watch Ad · Unlock Themes" chip tapped from inside the keyboard.
+                        // We can't show a rewarded ad from the IME service (needs Activity context),
+                        // so we open MainActivity which auto-shows the rewarded ad dialog.
+                        val intent = Intent().apply {
+                            setClassName(packageName, "com.example.animatedkeyboard.MainActivity")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            putExtra("auto_show_theme_ad", true)
+                        }
+                        startActivity(intent)
+                    }
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
                         else ic.commitText(label, 1)

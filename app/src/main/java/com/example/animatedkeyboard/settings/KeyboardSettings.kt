@@ -90,10 +90,11 @@ class KeyboardSettings private constructor(context: Context) {
         prefs.edit().putString("eng_pref_$prefixLower", chosenWord).apply()
     }
 
-    // Which of the 5 swipe-tune instruments is active (see KeySoundEngine.TUNE_NAMES).
+    // Which of the 10 swipe-tune instruments is active (see KeySoundEngine.TUNE_NAMES).
+    // -1 = no tune (default for fresh installs; tunes are locked behind a rewarded ad).
     var selectedTuneIndex: Int
-        get() = prefs.getInt("selected_tune_index", 0)
-        set(value) = prefs.edit().putInt("selected_tune_index", value.coerceIn(0, 9)).apply()
+        get() = prefs.getInt("selected_tune_index", -1)
+        set(value) = prefs.edit().putInt("selected_tune_index", value.coerceIn(-1, 9)).apply()
 
     // UI toggle only for now — the actual ninja fighting overlay feature is
     // being built later; this just persists the on/off state ahead of that.
@@ -137,8 +138,10 @@ class KeyboardSettings private constructor(context: Context) {
 
     // Which theme is active: a preset id ("rainbow", "inferno", ...) or the
     // special ids "custom_color" / "custom_image" — see ThemeRepository.resolve().
+    // Default for new installs is "solid_slate" — a static theme that needs no ad unlock.
+    // Animated themes (rainbow, etc.) are unlocked via rewarded ad; KeyboardView enforces this at runtime.
     var selectedThemeId: String
-        get() = prefs.getString("selected_theme_id", "rainbow") ?: "rainbow"
+        get() = prefs.getString("selected_theme_id", "solid_slate") ?: "solid_slate"
         set(value) = prefs.edit().putString("selected_theme_id", value).apply()
 
     // User-picked color from the color wheel dialog (MainActivity.showColorPickerDialog).

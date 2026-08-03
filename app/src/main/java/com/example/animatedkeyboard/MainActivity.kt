@@ -150,6 +150,13 @@ class MainActivity : AppCompatActivity() {
 
         buildThemeRows()
         updateAdStatusViews()
+
+        // If launched from the keyboard's "Watch Ad · Unlock Themes" chip, auto-show the dialog.
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            findViewById<android.view.View>(android.R.id.content).postDelayed({
+                autoShowThemeAdDialog()
+            }, 500)
+        }
     }
 
     override fun onResume() {
@@ -158,6 +165,52 @@ class MainActivity : AppCompatActivity() {
         updateToggleStates()
         buildThemeRows()
         updateAdStatusViews()
+    }
+
+    // Called when the activity is already running and receives a new intent
+    // (e.g. user tapped "Watch Ad · Unlock Themes" chip inside the keyboard).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            // Small delay so the activity is fully visible before the dialog appears.
+            findViewById<android.view.View>(android.R.id.content).postDelayed({
+                autoShowThemeAdDialog()
+            }, 300)
+        }
+    }
+
+    /**
+     * Shows the rewarded-ad dialog immediately — triggered when the user taps the
+     * "Watch Ad · Unlock Themes" chip inside the keyboard.
+     * Watching the ad grants both THEMES and TUNES unlocks for 12 hours.
+     */
+    private fun autoShowThemeAdDialog() {
+        if (ads.isUnlocked(RewardType.THEMES)) {
+            // Already unlocked — just refresh the UI and show remaining time.
+            updateAdStatusViews()
+            buildThemeRows()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("✨ Unlock Animated Themes")
+            .setMessage("Watch a short ad to unlock all animated themes for 12 hours.\n\nAfter 12 hours, just watch another ad to unlock again.")
+            .setPositiveButton("▶ Watch Ad") { _, _ ->
+                ads.showRewardedAd(
+                    activity  = this,
+                    type      = RewardType.THEMES,
+                    onRewarded = {
+                        updateAdStatusViews()
+                        buildThemeRows()
+                        Toast.makeText(this,
+                            "🎉 Animated themes unlocked for 12 hours!",
+                            Toast.LENGTH_LONG).show()
+                    },
+                    onFailed  = { /* toast already shown in UnityAdsManager */ }
+                )
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     // ── Ad status badges ──────────────────────────────────────────────────────
