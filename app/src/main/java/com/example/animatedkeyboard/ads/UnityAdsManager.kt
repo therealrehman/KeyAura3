@@ -76,7 +76,7 @@ class UnityAdsManager private constructor(context: Context) {
     // ── Initialization ────────────────────────────────────────────────────────
 
     fun initialize(context: Context) {
-        if (UnityAds.isInitialized()) return
+        if (UnityAds.isInitialized) return
         UnityAds.initialize(
             context,
             GAME_ID,
@@ -111,7 +111,7 @@ class UnityAdsManager private constructor(context: Context) {
         onRewarded: () -> Unit,
         onFailed: () -> Unit = {}
     ) {
-        if (!UnityAds.isInitialized()) {
+        if (!UnityAds.isInitialized) {
             initialize(activity)
             Toast.makeText(activity, "Ads loading… please try again in a moment.", Toast.LENGTH_SHORT).show()
             onFailed()
@@ -178,7 +178,7 @@ class UnityAdsManager private constructor(context: Context) {
      * Call this after Unity Ads is initialized.
      */
     fun loadBannerInto(activity: Activity, container: FrameLayout) {
-        if (!UnityAds.isInitialized()) return
+        if (!UnityAds.isInitialized) return
         val banner = BannerView(
             activity,
             PLACEMENT_BANNER,
@@ -196,6 +196,7 @@ class UnityAdsManager private constructor(context: Context) {
             override fun onBannerFailedToLoad(bannerAdView: BannerView, errorInfo: BannerErrorInfo) {
                 activity.runOnUiThread { container.visibility = android.view.View.GONE }
             }
+            override fun onBannerShown(bannerAdView: BannerView) {}
             override fun onBannerLeftApplication(bannerView: BannerView) {}
         }
         banner.load()
