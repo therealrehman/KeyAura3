@@ -22,6 +22,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
@@ -31,11 +36,9 @@ jobs:
         run: echo "$KEYSTORE_BASE64" | base64 -d > keyaura.jks
 
       - name: Build Release APK
+        run: gradle :app:assembleRelease --no-daemon
         env:
-          JAVA_TOOL_OPTIONS: ""
-          _JAVA_OPTIONS: ""
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Xms512m"
-        run: ./gradlew :app:assembleRelease --no-daemon
+          JAVA_TOOL_OPTIONS: -Xmx2048m
 
       - name: Sign APK
         env:
