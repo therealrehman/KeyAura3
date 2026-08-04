@@ -22,51 +22,51 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Download Gradle Wrapper JAR
-        run: |
-          mkdir -p gradle/wrapper
-          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
-            https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar
-
-      - name: Fix gradlew line endings
-        run: |
-          if [ -f gradlew ]; then
-            tr -d '\r' < gradlew > gradlew.tmp && mv gradlew.tmp gradlew
-          fi
-
       - name: Make gradlew executable
         run: chmod +x gradlew
 
       - name: Decode Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: echo "$KEYSTORE_BASE64" | base64 -d > keyaura-new.jks
+        run: echo "$KEYSTORE_BASE64" | base64 -d > keyaura.jks
 
-      - name: Write signing.properties
+      - name: Build Release APK
+        env:
+          JAVA_TOOL_OPTIONS: ""
+          _JAVA_OPTIONS: ""
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Xms512m"
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Sign APK
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          printf "storeFile=../keyaura-new.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" \
-            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
-            > signing.properties
+          jarsigner -verbose \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore keyaura.jks \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            "$KEY_ALIAS"
 
-      - name: Build Release APK
+      - name: Zipalign APK
         run: |
-          unset JAVA_TOOL_OPTIONS
-          unset _JAVA_OPTIONS
-          ./gradlew assembleRelease --no-daemon
+          ${ANDROID_HOME}/build-tools/34.0.0/zipalign -v 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            app/build/outputs/apk/release/KeyAura-signed.apk
 
       - name: Verify Signature
-        run: jarsigner -verify -verbose app/build/outputs/apk/release/app-release.apk
+        run: jarsigner -verify app/build/outputs/apk/release/KeyAura-signed.apk
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         with:
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/KeyAura-signed.apk
           tag_name: v${{ github.run_number }}
           name: KeyAura v${{ github.run_number }}
-          body: Signed Release APK
+          body: "Signed Release APK - KeyAura"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
