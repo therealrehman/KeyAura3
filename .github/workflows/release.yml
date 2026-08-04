@@ -5,11 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -17,43 +22,51 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Download Gradle Wrapper JAR
+        run: |
+          mkdir -p gradle/wrapper
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+            https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Fix gradlew line endings
+        run: |
+          if [ -f gradlew ]; then
+            tr -d '\r' < gradlew > gradlew.tmp && mv gradlew.tmp gradlew
+          fi
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
       - name: Decode Keystore
-        run: echo "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" | base64 -d > keyaura.jks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 -d > keyaura-new.jks
+
+      - name: Write signing.properties
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf "storeFile=../keyaura-new.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" \
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > signing.properties
 
       - name: Build Release APK
-        run: ./gradlew :app:assembleRelease
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Xms512m"
-
-      - name: Sign APK
         run: |
-          jarsigner -verbose \
-            -sigalg SHA256withRSA \
-            -digestalg SHA-256 \
-            -keystore keyaura.jks \
-            -storepass Keyaura123 \
-            -keypass Keyaura123 \
-            app/build/outputs/apk/release/app-release-unsigned.apk \
-            Keyaura
-
-      - name: Zipalign APK
-        run: |
-          ${ANDROID_HOME}/build-tools/34.0.0/zipalign -v 4 \
-            app/build/outputs/apk/release/app-release-unsigned.apk \
-            app/build/outputs/apk/release/KeyAura-signed.apk
+          unset JAVA_TOOL_OPTIONS
+          unset _JAVA_OPTIONS
+          ./gradlew assembleRelease --no-daemon
 
       - name: Verify Signature
-        run: jarsigner -verify app/build/outputs/apk/release/KeyAura-signed.apk
+        run: jarsigner -verify -verbose app/build/outputs/apk/release/app-release.apk
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/KeyAura-signed.apk
+          files: app/build/outputs/apk/release/app-release.apk
           tag_name: v${{ github.run_number }}
           name: KeyAura v${{ github.run_number }}
-          body: "Signed Release APK - KeyAura"
+          body: Signed Release APK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
