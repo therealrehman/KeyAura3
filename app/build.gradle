@@ -15,23 +15,8 @@ android {
         versionName "1.0.0"
     }
 
-    signingConfigs {
-        release {
-            def propsFile = rootProject.file('signing.properties')
-            if (propsFile.exists()) {
-                def props = new Properties()
-                props.load(new FileInputStream(propsFile))
-                storeFile     file(props['storeFile'])
-                storePassword props['storePassword']
-                keyAlias      props['keyAlias']
-                keyPassword   props['keyPassword']
-            }
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -52,7 +37,5 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
-
-    // Unity Ads SDK
     implementation 'com.unity3d.ads:unity-ads:4.12.1'
 }
