@@ -1,0 +1,53 @@
+name: Build and Release Signed APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Sign APK with jarsigner
+        run: |
+          jarsigner \
+            -verbose \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore keyaura.keystore \
+            -storepass 12345678 \
+            -keypass 12345678 \
+            app/build/outputs/apk/debug/app-debug.apk \
+            keyaura
+
+      - name: Verify Signature
+        run: jarsigner -verify app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v${{ github.run_number }}
+          name: KeyAura v${{ github.run_number }}
+          body: |
+            ### KeyAura APK - Build #${{ github.run_number }}
+            Signed APK - direct install karo apni website se.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
