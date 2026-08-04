@@ -3,6 +3,12 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def signingProps = new Properties()
+def signingFile = rootProject.file('signing.properties')
+if (signingFile.exists()) {
+    signingProps.load(new FileInputStream(signingFile))
+}
+
 android {
     namespace 'com.example.animatedkeyboard'
     compileSdk 34
@@ -15,16 +21,28 @@ android {
         versionName "1.0.0"
     }
 
+    signingConfigs {
+        release {
+            storeFile file(signingProps['storeFile'] ?: 'keyaura-release.jks')
+            storePassword signingProps['storePassword'] ?: ''
+            keyAlias signingProps['keyAlias'] ?: ''
+            keyPassword signingProps['keyPassword'] ?: ''
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
     kotlinOptions {
         jvmTarget = '17'
     }
@@ -36,7 +54,6 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
-
-    // Unity Ads SDK — Banner_Android, Interstitial_Android, Rewarded_Android
-    implementation 'com.unity3d.ads:unity-ads:4.12.1'
+    // Unity Ads SDK
+    implementation 'com.unity3d.ads:unity-ads:4.9.2'
 }

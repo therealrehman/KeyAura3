@@ -17,8 +17,6 @@ import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
-import android.widget.Toast
-import com.example.animatedkeyboard.ads.UnityAdsManager
 import com.example.animatedkeyboard.clipboard.ClipboardEntry
 import com.example.animatedkeyboard.clipboard.ClipboardRepository
 import com.example.animatedkeyboard.emoji.EmojiRepository
@@ -57,6 +55,7 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onCreateInputView(): View {
         rootContainer = FrameLayout(this)
         stripHeightPx = (52 * resources.displayMetrics.density).toInt()
+        com.example.animatedkeyboard.ads.AdsManager.init(this)
 
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
@@ -91,16 +90,20 @@ class AnimatedKeyboardIME : InputMethodService() {
                         }
                         startActivity(intent)
                     }
-                    -16 -> {
-                        // "Watch Ad · Unlock Themes" chip tapped from inside the keyboard.
-                        // We can't show a rewarded ad from the IME service (needs Activity context),
-                        // so we open MainActivity which auto-shows the rewarded ad dialog.
-                        val intent = Intent().apply {
-                            setClassName(packageName, "com.example.animatedkeyboard.MainActivity")
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            putExtra("auto_show_theme_ad", true)
+                    -20 -> {
+                        // Ad banner tapped — show rewarded ad
+                        val act = getActivity()
+                        if (act != null) {
+                            com.example.animatedkeyboard.ads.AdsManager.showThemesAd(act) {
+                                if (::keyboardView.isInitialized) {
+                                    keyboardView.dismissAdBanner()
+                                    keyboardView.refreshTheme()
+                                }
+                            }
+                        } else {
+                            // No activity context — just dismiss banner
+                            if (::keyboardView.isInitialized) keyboardView.dismissAdBanner()
                         }
-                        startActivity(intent)
                     }
                     else -> {
                         if (label == "Space") ic.commitText(" ", 1)
@@ -312,14 +315,17 @@ class AnimatedKeyboardIME : InputMethodService() {
     }
 
     private fun showGamePanel() {
-        // Check if game is unlocked via rewarded ad (12-hour window)
-        val adsManager = UnityAdsManager.getInstance(this)
-        if (!adsManager.isUnlocked(UnityAdsManager.RewardType.GAME)) {
-            Toast.makeText(
-                this,
-                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 12h 🎮",
-                Toast.LENGTH_LONG
-            ).show()
+        if (!com.example.animatedkeyboard.ads.AdsManager.isGameUnlocked()) {
+            // Game locked — show toast and trigger ad
+            val act = getActivity()
+            if (act != null) {
+                com.example.animatedkeyboard.ads.AdsManager.showGameAd(act) {
+                    if (::keyboardView.isInitialized) {
+                        showKeyboard()
+                        showGamePanel() // reopen after unlock
+                    }
+                }
+            }
             return
         }
         exitEmojiSearch()
@@ -328,6 +334,23 @@ class AnimatedKeyboardIME : InputMethodService() {
         clipboardPanelView.visibility = View.GONE
         gamePanelView.visibility = View.VISIBLE
         gamePanelView.onPanelShown()
+    }
+
+    private fun getActivity(): android.app.Activity? {
+        return try {
+            val clazz = Class.forName("android.app.ActivityThread")
+            val thread = clazz.getMethod("currentActivityThread").invoke(null)
+            val activities = clazz.getDeclaredField("mActivities")
+                .apply { isAccessible = true }.get(thread) as? android.util.ArrayMap<*, *> ?: return null
+            for (value in activities.values) {
+                val rec = value ?: continue
+                val paused = rec.javaClass.getDeclaredField("paused")
+                    .apply { isAccessible = true }.getBoolean(rec)
+                if (!paused) return rec.javaClass.getDeclaredField("activity")
+                    .apply { isAccessible = true }.get(rec) as? android.app.Activity
+            }
+            null
+        } catch (e: Exception) { null }
     }
 
     private fun showKeyboard() {

@@ -178,21 +178,19 @@ Version: See Google Play for latest
     // ─── PRIVACY POLICY ─────────────────────────────────────────────────────
 
     private fun showPrivacy() {
-        hero("🔒", "Privacy Policy", "Last updated: August 3, 2026")
+        hero("🔒", "Privacy Policy", "Last updated: August 4, 2026")
 
         sectionCard("📌 Introduction", """
 OKLabs ("we", "us", "our") built KeyAura as a free Android keyboard app. This Privacy Policy explains how we handle your information. By using KeyAura, you agree to this policy.
 
-We believe privacy is a right, not a feature. KeyAura is designed from the ground up to process everything locally on your device.
-
-KeyAura is free and supported by ads. We use Unity Ads to display advertisements within the app. You can unlock premium features (animated themes, swipe tunes, game) by watching short rewarded ads.
+We believe privacy is a right, not a feature. KeyAura is designed to process everything locally on your device wherever possible.
         """.trimIndent(), ACCENT)
 
         sectionCard("✅ What We NEVER Do", """
 We NEVER:
 • Record, read, log, or transmit what you type
 • Store your passwords, messages, or personal conversations
-• Sell your personal data to any third party
+• Sell your data to any third party
 • Access your contacts, photos, or files
 • Track your location
 • Collect any personally identifiable information
@@ -201,68 +199,89 @@ Your typing stays on your device. Period.
         """.trimIndent(), SUCCESS)
 
         sectionCard("📱 Data Stored Locally (On Your Device Only)", """
-KeyAura stores the following only on your device, never on our servers:
+KeyAura stores the following only on your device:
 
 • Your selected theme and color preferences
 • Sound, haptic, and volume settings
 • Clipboard history (if you use the clipboard panel)
 • Recent emoji usage
 • Swipe tune selection
-• Word preferences for suggestions
+• Ad unlock status (whether you watched an ad to unlock features)
 
-All this data stays on your phone and is deleted when you uninstall the app or clear app data.
+All this data stays on your phone and is deleted when you uninstall the app.
         """.trimIndent(), MUTED)
+
+        sectionCard("🎯 Rewarded Advertisements (Unity Ads)", """
+KeyAura uses Unity Ads (by Unity Technologies) to show optional rewarded video advertisements.
+
+HOW IT WORKS:
+• Ads are 100% optional — you are never forced to watch one
+• You choose to watch an ad to unlock features for 12 hours:
+  - Animated keyboard themes
+  - Swipe tune sounds
+  - Built-in mini game
+
+WHAT UNITY ADS MAY COLLECT:
+Unity Ads may collect device information such as device model, OS version, IP address, and advertising identifiers (e.g. Android Advertising ID) to serve relevant ads and measure performance.
+
+This is governed by Unity's Privacy Policy:
+https://unity.com/legal/privacy-policy
+
+You can opt out of personalized ads by resetting your Android Advertising ID in:
+Android Settings → Google → Ads → Reset advertising ID
+
+We do NOT display banner ads, interstitial ads, or any non-optional advertisements in the keyboard interface.
+        """.trimIndent(), WARNING)
 
         sectionCard("🔑 Permissions Explained", """
 INPUT METHOD (Required)
-Allows KeyAura to appear as a keyboard. Android's system controls what the keyboard can access — we cannot read secure/password fields.
+Allows KeyAura to appear as a keyboard. Android controls what the keyboard can access — we cannot read secure/password fields.
 
 MICROPHONE (Optional)
-Used ONLY when you tap the mic key for voice typing. Processed by Android's built-in speech engine. Never used without your explicit action.
+Used ONLY when you tap the mic key for voice typing. Never used without your action.
 
 CLIPBOARD (Optional)
-Read only when you open the clipboard panel or copy something while the keyboard is visible. Stored locally only.
+Read only when you open the clipboard panel. Stored locally only.
 
 VIBRATION
-For haptic feedback on key presses. No data involved.
+For haptic feedback. No data involved.
 
 INTERNET
-Required for displaying ads via Unity Ads and for general app functionality. KeyAura itself makes no outbound connections to OKLabs servers. Ad network data is governed by Unity's own privacy policy.
+Required for Unity Ads to load and display rewarded video advertisements when you choose to watch them.
         """.trimIndent(), WARNING)
 
         sectionCard("🔗 Third-Party Services", """
-Unity Ads (ironSource/Unity Technologies): KeyAura displays ads powered by Unity Ads to support free access to the app. Unity Ads may collect device identifiers, IP address, and ad interaction data to serve relevant ads. See Unity's Privacy Policy at: unity.com/legal/privacy-policy
+Unity Ads (Unity Technologies)
+Used for optional rewarded video ads to unlock premium features.
+Policy: https://unity.com/legal/privacy-policy
 
-Banner ads are shown in the app UI. Rewarded video ads let you unlock animated themes, swipe tunes, and the mini-game for 12 hours each — completely optional.
-
-Google Play Services: The app is distributed via Google Play, which may collect install/crash metadata per Google's own Privacy Policy.
+Google Play Services
+The app is distributed via Google Play, which may collect install/crash metadata per Google's Privacy Policy.
 
 What we DO NOT use:
-✗ Firebase Analytics
-✗ Firebase Crashlytics  
-✗ AdMob
+✗ Firebase Analytics or Crashlytics
+✗ AdMob or any forced ad network
 ✗ Facebook SDK
-✗ Any additional analytics or tracking SDK
+✗ Any analytics or tracking SDK
         """.trimIndent(), MUTED)
 
         sectionCard("👶 Children's Privacy", """
-KeyAura is not directed at children under 13. We do not knowingly collect data from children. Since KeyAura collects no personal data by design, there is inherently no child data at risk.
+KeyAura is not directed at children under 13. We do not knowingly collect data from children. Unity Ads also has child-safety policies and does not serve personalized ads to users identified as children.
 
-If you believe a child has been affected, contact us at a.rehmanmazher11@gmail.com and we will address it promptly.
+If you believe a child has been affected, contact us at a.rehmanmazher11@gmail.com.
         """.trimIndent(), MUTED)
 
         sectionCard("⚖️ Your Rights", """
-Since we store nothing on our servers, there is no personal profile for us to access or delete. You control all your data:
-
+You control all your data:
 • Clear app data: Android Settings → Apps → KeyAura → Clear Data
-• Clear clipboard: From within the KeyAura clipboard panel
+• Opt out of personalized ads: Android Settings → Google → Ads
 • Delete everything: Uninstall the app
 
-EU/EEA users (GDPR) and California users (CCPA) have the right to know what data we hold. Our honest answer: none on our servers.
+EU/EEA users (GDPR) and California users (CCPA): We hold no personal data on our servers. Unity Ads complies with GDPR and provides a consent mechanism where required.
         """.trimIndent(), MUTED)
 
         sectionCard("📢 Policy Updates", """
-We may update this policy for legal or feature changes. The updated date will always be shown at the top. Continued use of KeyAura after changes means you accept the updated policy.
+We may update this policy for legal or feature changes. The updated date at the top will always reflect the latest version.
 
 Contact: a.rehmanmazher11@gmail.com
         """.trimIndent(), MUTED)

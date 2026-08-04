@@ -1,10 +1,5 @@
 package com.example.animatedkeyboard.ui.view
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import com.example.animatedkeyboard.theme.KeyboardTheme
-import com.example.animatedkeyboard.theme.ThemeRepository
-import com.example.animatedkeyboard.theme.ThemeType
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -52,18 +47,10 @@ class KeyboardView @JvmOverloads constructor(
     // FIX: a just-copied clip shown as a one-tap paste suggestion in the strip,
     // taking over the chip area until tapped or until normal typing resumes.
     private var pendingClipboardSuggestion: String? = null
-    private var pendingClipboardPreview: String = ""
 
     /** Called by the IME when a new item is copied system-wide, while the keyboard is showing. */
     fun showClipboardSuggestion(text: String) {
         pendingClipboardSuggestion = text
-        // FIX: strip only ever draws this short precomputed preview — the full
-        // text is still stored above for pasting. Previously drawFittedChipText
-        // ran measureText()/ellipsis-trimming on the FULL copied text every
-        // single frame, which is a real hang risk for large clipboard entries.
-        val oneLine = text.trim().replace(Regex("\\s+"), " ")
-        pendingClipboardPreview = if (oneLine.length <= 22) oneLine
-        else oneLine.take(22).trimEnd() + "…"
         createKeyMap(width, height)
     }
 
@@ -82,29 +69,13 @@ class KeyboardView @JvmOverloads constructor(
     // engine and can't be tuned; this lets duration+amplitude be set precisely
     // and consistently across devices.
     private val vibrator by lazy {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)
-                    as? android.os.VibratorManager)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-        }
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
     }
-
-    private var lastHapticAt = 0L
 
     private fun triggerKeyHaptic() {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
-        val now = android.os.SystemClock.uptimeMillis()
-        // FIX: fast typing was firing vibrate() calls close enough together that
-        // many devices silently drop the newer one while the previous is still
-        // running. cancel() the prior vibration first, and don't even try again
-        // within 20ms of the last call.
-        if (now - lastHapticAt < 20L) return
-        lastHapticAt = now
         try {
-            v.cancel()
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 v.vibrate(
                     android.os.VibrationEffect.createOneShot(
@@ -198,83 +169,6 @@ class KeyboardView @JvmOverloads constructor(
         soundEngine.refreshTuneIfChanged()
     }
 
-    // ---------- Theme engine ----------
-    private var activeTheme: KeyboardTheme = ThemeRepository.defaultTheme
-    private var kbBgBitmap: Bitmap? = null
-    private var kbBgPath: String? = null
-
-    /** IME har keyboard show par call karta hai — nayi theme foran apply. */
-    fun refreshTheme() {
-        val themesUnlocked = com.example.animatedkeyboard.ads.AdsManager.isThemesUnlocked()
-        activeTheme = ThemeRepository.resolve(settings)
-
-        // If animated theme selected but NOT unlocked — force static black keyboard
-        val forceStatic = !themesUnlocked && (
-            activeTheme.type == ThemeType.ANIMATED_SINGLE ||
-            activeTheme.type == ThemeType.ANIMATED_MULTI
-        )
-
-        if (forceStatic) {
-            animationEngine.themeAnimationsEnabled = false
-            animationEngine.singleThemeColor = null
-            // Override to a clean dark solid look
-            activeTheme = KeyboardTheme(
-                "solid_black", "Black", ThemeType.SOLID,
-                Color.parseColor("#444444"), Color.parseColor("#1A1A1A"),
-                Color.WHITE, Color.BLACK
-            )
-        } else {
-            when (activeTheme.type) {
-                ThemeType.ANIMATED_MULTI -> {
-                    animationEngine.singleThemeColor = null
-                    animationEngine.themeAnimationsEnabled = settings.animationEnabled
-                }
-                ThemeType.ANIMATED_SINGLE -> {
-                    animationEngine.singleThemeColor = activeTheme.accentColor
-                    animationEngine.themeAnimationsEnabled = settings.animationEnabled
-                }
-                ThemeType.SOLID -> {
-                    animationEngine.themeAnimationsEnabled = false
-                }
-                ThemeType.CUSTOM_IMAGE -> {
-                    animationEngine.singleThemeColor = null
-                    animationEngine.themeAnimationsEnabled = settings.animationEnabled
-                }
-            }
-        }
-
-        loadBgBitmapIfNeeded()
-        stripBgPaint.color = if (activeTheme.type == ThemeType.SOLID)
-            ThemeRepository.darken(activeTheme.bgColor, 0.6f) else Color.parseColor("#050505")
-        createKeyMap(width, height)
-        postInvalidateOnAnimation()
-    }
-
-    private fun loadBgBitmapIfNeeded() {
-        val path = if (activeTheme.type == ThemeType.CUSTOM_IMAGE) settings.keyboardImagePath else null
-        if (path == kbBgPath) return
-        kbBgPath = path
-        kbBgBitmap?.recycle()
-        kbBgBitmap = null
-        if (path != null) {
-            kbBgBitmap = try {
-                val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-                BitmapFactory.decodeFile(path, opts)
-            } catch (e: Exception) { null }
-        }
-    }
-
-    private fun drawImageBackground(canvas: Canvas, bmp: Bitmap) {
-        val vw = width.toFloat(); val vh = height.toFloat()
-        val scale = maxOf(vw / bmp.width, vh / bmp.height)
-        val dw = bmp.width * scale; val dh = bmp.height * scale
-        val left = (vw - dw) / 2f; val top = (vh - dh) / 2f
-        canvas.drawBitmap(bmp, null, android.graphics.RectF(left, top, left + dw, top + dh), null)
-        // Keys readable rahen — halka dark overlay
-        canvas.drawColor(Color.argb(130, 0, 0, 0))
-    }
-
-
     fun setOnCustomKeyListener(listener: OnKeyListener) {
         this.keyListener = listener
     }
@@ -322,7 +216,6 @@ class KeyboardView @JvmOverloads constructor(
     private val pointerPopups = mutableMapOf<Int, PopupEffect>()
     private var primaryPointerId = -1
     private var lastSwipeKeyLabel: String? = null // FIX: avoids re-triggering the same note while lingering on one key mid-swipe
-    private var lastAnimatedSwipeKey: String? = null // FIX: avoids multiple animations on same key during swipe hold
     // FIX: click sound is deferred briefly so a starting swipe can cancel it —
     // otherwise every swipe gesture always played one plain click at its start.
     private val pendingClickRunnables = mutableMapOf<Int, Runnable>()
@@ -346,7 +239,7 @@ class KeyboardView @JvmOverloads constructor(
         listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
         listOf("*", "\"", "'", ":", ";", "!", "?"),
         listOf("=\\<", "%", "^", "[", "]", "{", "}", "Del"),
-        listOf("ABC", "اردو", "Emoji", ",", "Space", ".", "Go")
+        listOf("ABC", "Emoji", ",", "Space", ".", "Go")
     )
 
     // Symbol layout 2 (extended)
@@ -355,26 +248,7 @@ class KeyboardView @JvmOverloads constructor(
         listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
         listOf("©", "®", "™", "✓", "[", "]", "<", ">"),
         listOf("123", "_", "-", "+", "(", ")", "/", "Del"),
-        listOf("ABC", "اردو", "Emoji", ",", "Space", ".", "Go")
-    )
-
-    // FIX: native Urdu script layout — reached via the "اردو" key on the 123 page.
-    // Separate from the existing "Urdu" transliteration toggle on the letter
-    // layout; this gives a full dedicated Urdu keyboard instead of roman-to-Urdu mapping.
-    private val urduLayout = listOf(
-        listOf("۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹", "۰"),
-        listOf("ق", "و", "ع", "ر", "ت", "ے", "ء", "ی", "ہ", "پ"),
-        listOf("ا", "س", "د", "ف", "گ", "ھ", "ج", "ک", "ل"),
-        listOf("Shift", "ز", "ش", "چ", "ط", "ب", "ن", "م", "Del"),
-        listOf("ABC", "123", "Emoji", "Space", "۔", "Go")
-    )
-
-    private val urduShiftLayout = listOf(
-        listOf("!", "؍", "؛", "٪", "؞", "۔", "،", "(", ")", "؟"),
-        listOf("ؤ", "ئ", "آ", "ٹ", "ڈ", "خ", "ص", "ض", "ژ", "غ"),
-        listOf("ث", "ذ", "ظ", "ڑ", "ں", "ّ", "ٰ", "أ", "إ"),
-        listOf("Shift", "ـ", "ٓ", "٬", "٫", "؀", "؁", "؂", "Del"),
-        listOf("ABC", "123", "Emoji", "Space", "۔", "Go")
+        listOf("ABC", "Emoji", ",", "Space", ".", "Go")
     )
 
     private var currentLayout = letterLayout
@@ -432,10 +306,6 @@ class KeyboardView @JvmOverloads constructor(
         keyCodes["Emoji"] = -9
         keyCodes["=\\<"] = -7
         keyCodes["Urdu"] = -8
-        keyCodes["اردو"] = -12
-        keyCodes["KbSettings"] = -15
-
-        refreshTheme()
     }
 
     // FIX: Landscape - use fixed height, never expand to fullscreen
@@ -555,16 +425,15 @@ class KeyboardView @JvmOverloads constructor(
         keyMap["Game"] = Rect(gameLeft, stripTop, gameRight, stripBottom)
         keyStates.putIfAbsent("Game", KeyState.NORMAL)
 
-        // Mic + Settings both docked at the strip's right border.
-        val settingsKeyWidth = dp(28f).toInt()
+        // FIX: Mic docked at the strip's right border, always visible.
         val micKeyWidth = dp(32f).toInt()
-        val settingsLeft = width - sideMargin - settingsKeyWidth
-        val micLeft = settingsLeft - hGap - micKeyWidth
-        keyMap["Mic"] = Rect(micLeft, stripTop, micLeft + micKeyWidth, stripBottom)
+        val micLeft = width - sideMargin - micKeyWidth
+        keyMap["Mic"] = Rect(micLeft, stripTop, width - sideMargin, stripBottom)
         keyStates.putIfAbsent("Mic", KeyState.NORMAL)
-        keyMap["KbSettings"] = Rect(settingsLeft, stripTop, width - sideMargin, stripBottom)
-        keyStates.putIfAbsent("KbSettings", KeyState.NORMAL)
 
+        // FIX: a just-copied clip takes over the chip area as a single quick-
+        // paste suggestion; tapping it (or resuming normal typing) reverts to
+        // regular Urdu/English suggestions.
         val chipsLeft = gameRight + hGap
         val chipsAvailableWidth = micLeft - hGap - chipsLeft
         if (chipsAvailableWidth <= 0) return
@@ -573,15 +442,6 @@ class KeyboardView @JvmOverloads constructor(
         if (clipSuggestion != null) {
             keyMap["clipSugg"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
             keyStates.putIfAbsent("clipSugg", KeyState.NORMAL)
-            return
-        }
-
-        // FIX: show "Watch Ad" banner in suggestion strip when themes are locked
-        if (!com.example.animatedkeyboard.ads.AdsManager.isThemesUnlocked() &&
-            shouldShowAdBanner()
-        ) {
-            keyMap["adBanner"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
-            keyStates.putIfAbsent("adBanner", KeyState.NORMAL)
             return
         }
 
@@ -597,29 +457,10 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
 
-    private fun shouldShowAdBanner(): Boolean {
-        val dismissedUntil = settings.prefs.getLong("ad_banner_dismissed_until", 0L)
-        return System.currentTimeMillis() > dismissedUntil
-    }
-
-    fun showGameLockedToast() {
-        android.widget.Toast.makeText(context,
-            "🎮 Watch an ad to unlock the game for 12 hours!",
-            android.widget.Toast.LENGTH_SHORT).show()
-    }
-
-    fun dismissAdBanner() {
-        settings.prefs.edit().putLong("ad_banner_dismissed_until",
-            System.currentTimeMillis() + 12 * 60 * 60 * 1000L).apply()
-        createKeyMap(width, height)
-        postInvalidateOnAnimation()
-    }
-
     private fun getWeight(label: String): Float {
         return when (label) {
             "Space" -> 3.5f
             "Shift", "Del", "123", "ABC", "Go" -> 1.4f
-            "اردو" -> 1.4f
             "=\\<" -> 1.6f
             "Emoji" -> 1.0f
             "Urdu" -> 1.0f // FIX: same box size as regular letter keys, per spec
@@ -633,12 +474,7 @@ class KeyboardView @JvmOverloads constructor(
         val dt = if (lastFrameTime == 0L) 16 else now - lastFrameTime
         lastFrameTime = now
 
-        val bgBmp = kbBgBitmap
-        if (activeTheme.type == ThemeType.CUSTOM_IMAGE && bgBmp != null && !bgBmp.isRecycled) {
-            drawImageBackground(canvas, bgBmp)
-        } else {
-            canvas.drawColor(activeTheme.bgColor)
-        }
+        canvas.drawColor(Color.BLACK)
         drawCoolGlow(canvas)
 
         try {
@@ -725,61 +561,41 @@ class KeyboardView @JvmOverloads constructor(
     private fun drawKey(canvas: Canvas, label: String, rect: Rect) {
         val state = keyStates[label] ?: KeyState.NORMAL
 
-            val accent = activeTheme.accentColor
-    when (state) {
-        KeyState.WHITE -> {
-            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
+        when (state) {
+            KeyState.WHITE -> {
                 keyPaint.color = Color.WHITE
                 textPaint.color = Color.BLACK
                 keyPaint.setShadowLayer(35f, 0f, 0f, Color.WHITE)
-            } else {
-                keyPaint.color = ThemeRepository.lighten(accent, 0.7f)
-                textPaint.color = Color.WHITE
-                keyPaint.setShadowLayer(35f, 0f, 0f, accent)
             }
-        }
-        KeyState.PINK -> {
-            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
+            KeyState.PINK -> {
                 keyPaint.color = Color.MAGENTA
                 textPaint.color = Color.WHITE
                 keyPaint.setShadowLayer(28f, 0f, 0f, Color.MAGENTA)
-            } else {
-                keyPaint.color = accent
-                textPaint.color = Color.WHITE
-                keyPaint.setShadowLayer(28f, 0f, 0f, accent)
             }
-        }
-        KeyState.FADE -> {
-            if (activeTheme.type == ThemeType.ANIMATED_MULTI) {
+            KeyState.FADE -> {
                 keyPaint.color = Color.parseColor("#FF6400")
                 textPaint.color = Color.WHITE
                 keyPaint.setShadowLayer(22f, 0f, 0f, Color.parseColor("#FF6400"))
-            } else {
-                val dark = ThemeRepository.darken(accent, 0.7f)
-                keyPaint.color = dark
-                textPaint.color = Color.WHITE
-                keyPaint.setShadowLayer(22f, 0f, 0f, dark)
+            }
+            KeyState.NORMAL -> {
+                // FIX: Urdu key highlights blue while Urdu typing is active, so its
+                // state is visible at a glance instead of only readable via its label.
+                if (label == "Urdu" && settings.urduEnabled) {
+                    keyPaint.color = Color.parseColor("#2255CC")
+                    textPaint.color = Color.WHITE
+                } else if (label == "Mic" && isListeningForSpeech) {
+                    keyPaint.color = Color.parseColor("#CC2244")
+                    textPaint.color = Color.WHITE
+                } else if (label.startsWith("sugg")) {
+                    keyPaint.color = Color.parseColor("#151515")
+                    textPaint.color = Color.WHITE
+                } else {
+                    keyPaint.color = Color.parseColor("#080808")
+                    textPaint.color = Color.WHITE
+                }
+                keyPaint.clearShadowLayer()
             }
         }
-        KeyState.NORMAL -> {
-            if (label == "Urdu" && settings.urduEnabled) {
-                keyPaint.color = Color.parseColor("#2255CC")
-                textPaint.color = Color.WHITE
-            } else if (label == "Mic" && isListeningForSpeech) {
-                keyPaint.color = Color.parseColor("#CC2244")
-                textPaint.color = Color.WHITE
-            } else if (label.startsWith("sugg")) {
-                keyPaint.color = if (activeTheme.type == ThemeType.SOLID)
-                    ThemeRepository.lighten(activeTheme.keyColor, 0.08f)
-                else Color.parseColor("#151515")
-                textPaint.color = activeTheme.textColor
-            } else {
-                keyPaint.color = activeTheme.keyColor
-                textPaint.color = activeTheme.textColor
-            }
-            keyPaint.clearShadowLayer()
-        }
-    }
 
         val l = rect.left.toFloat()
         val t = rect.top.toFloat()
@@ -806,41 +622,11 @@ class KeyboardView @JvmOverloads constructor(
                 val p = Paint(textPaint).apply { textSize = dp(10f) }
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
-            "اردو" -> {
-                val p = Paint(textPaint).apply { textSize = dp(11f) }
-                canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
-            }
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
-            "KbSettings" -> drawSettingsIcon(canvas, rect, textPaint.color)
             else -> if (label == "clipSugg") {
-                drawFittedChipText(canvas, pendingClipboardPreview, rect)
-            } else if (label == "adBanner") {
-                // Ad banner chip — glowing accent, pulsing text
-                val bgPaint = Paint().apply {
-                    isAntiAlias = true
-                    color = Color.parseColor("#0D0F1F")
-                }
-                val borderPaint = Paint().apply {
-                    isAntiAlias = true
-                    color = Color.parseColor("#4C8AFF")
-                    style = Paint.Style.STROKE
-                    strokeWidth = dp(1.5f)
-                }
-                val chipR = dp(10f)
-                canvas.drawRoundRect(rect.left.toFloat(), rect.top.toFloat(),
-                    rect.right.toFloat(), rect.bottom.toFloat(), chipR, chipR, bgPaint)
-                canvas.drawRoundRect(rect.left.toFloat(), rect.top.toFloat(),
-                    rect.right.toFloat(), rect.bottom.toFloat(), chipR, chipR, borderPaint)
-                val p = Paint(textPaint).apply {
-                    textSize = dp(11f)
-                    color = Color.parseColor("#4C8AFF")
-                    textAlign = Paint.Align.CENTER
-                    isFakeBoldText = true
-                }
-                canvas.drawText("▶ Watch Ad · Unlock Themes",
-                    rect.exactCenterX(), rect.exactCenterY() + p.textSize / 3f, p)
+                drawFittedChipText(canvas, pendingClipboardSuggestion ?: "", rect)
             } else if (label.startsWith("sugg")) {
                 // FIX: suggestion chips show the actual candidate text, not the raw
                 // "sugg0" label. Previously drawn at a fixed size with no width
@@ -899,28 +685,6 @@ class KeyboardView @JvmOverloads constructor(
         canvas.drawArc(archRect, 20f, 140f, false, p)
         canvas.drawLine(cx, archTop + dp(4f), cx, cy + capsuleH / 2 + dp(3f), p)
         canvas.drawLine(cx - dp(3.5f), cy + capsuleH / 2 + dp(3f), cx + dp(3.5f), cy + capsuleH / 2 + dp(3f), p)
-    }
-
-    private fun drawSettingsIcon(canvas: Canvas, rect: Rect, color: Int) {
-        val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
-        val outerR = dp(6.5f); val innerR = dp(4f); val toothCount = 8
-        val p = Paint().apply { this.color = color; style = Paint.Style.FILL; isAntiAlias = true }
-        val path = android.graphics.Path()
-        for (i in 0 until toothCount * 2) {
-            val angle = Math.toRadians((i * 360.0 / (toothCount * 2)) - 90.0)
-            val r = if (i % 2 == 0) outerR else outerR - dp(2.5f)
-            val x = cx + r * Math.cos(angle).toFloat()
-            val y = cy + r * Math.sin(angle).toFloat()
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        path.close()
-        canvas.drawPath(path, p)
-        val holePaint = Paint().apply {
-            this.color = android.graphics.Color.TRANSPARENT
-            style = Paint.Style.FILL; isAntiAlias = true
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-        }
-        canvas.drawCircle(cx, cy, innerR, holePaint)
     }
 
     private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
@@ -1115,7 +879,6 @@ class KeyboardView @JvmOverloads constructor(
                 isSwiping = false
                 isLongPress = false
                 lastSwipeKeyLabel = null
-                lastAnimatedSwipeKey = null
                 handleTouchDown(primaryPointerId, event.x, event.y, isPrimary = true)
                 return true
             }
@@ -1176,7 +939,6 @@ class KeyboardView @JvmOverloads constructor(
                             touchStartY = event.getY(i)
                             isSwiping = false
                             lastSwipeKeyLabel = null
-                            lastAnimatedSwipeKey = null
                             break
                         }
                     }
@@ -1300,7 +1062,6 @@ class KeyboardView @JvmOverloads constructor(
                         override fun run() {
                             if (isLongPress && longPressKey == "Del") {
                                 keyListener?.onKey(-5, "Del")
-                                if (settings.hapticEnabled) triggerKeyHaptic()
                                 handler.postDelayed(this, settings.backspaceRepeatIntervalMs)
                             }
                         }
@@ -1308,7 +1069,7 @@ class KeyboardView @JvmOverloads constructor(
                     handler.postDelayed(backspaceRunnable!!, 500)
                 }
 
-                if (isPrimary && label == "Shift" && currentLayout !== urduLayout && currentLayout !== urduShiftLayout) {
+                if (isPrimary && label == "Shift") {
                     isLongPress = true
                     longPressKey = label
                     capsLockRunnable = Runnable {
@@ -1331,18 +1092,15 @@ class KeyboardView @JvmOverloads constructor(
             hitTestRect.set(rect)
             hitTestRect.inset(-touchSlopPx, -touchSlopPx)
             if (hitTestRect.contains(x.toInt(), y.toInt())) {
-                // FIX: only trigger animation ONCE per key during a swipe.
-                // Previously triggerAnimation fired on every ACTION_MOVE frame,
-                // so holding a finger on one key spammed dozens of bursts.
-                if (label != lastAnimatedSwipeKey) {
-                    lastAnimatedSwipeKey = label
-                    animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
-                    pressedKeys[label] = System.currentTimeMillis()
-                    postInvalidateOnAnimation()
-                }
+                animationEngine.triggerAnimation(rect.exactCenterX(), rect.exactCenterY(), label)
+                pressedKeys[label] = System.currentTimeMillis()
+                postInvalidateOnAnimation()
 
-                if (settings.soundEnabled && label != lastSwipeKeyLabel && width > 0 &&
-                    com.example.animatedkeyboard.ads.AdsManager.isTunesUnlocked()) {
+                // FIX: continuous musical swipe sound — plays one note of a
+                // pentatonic scale each time the finger glides onto a new key,
+                // chosen by horizontal position so any left-to-right swipe
+                // (on any row) plays a smooth ascending/descending run.
+                if (settings.soundEnabled && label != lastSwipeKeyLabel && width > 0) {
                     lastSwipeKeyLabel = label
                     val noteIndex = ((rect.exactCenterX() / width.toFloat()) * soundEngine.noteCount)
                         .toInt().coerceIn(0, soundEngine.noteCount - 1)
@@ -1418,21 +1176,13 @@ class KeyboardView @JvmOverloads constructor(
         announceKeyForAccessibility(label)
         when (label) {
             "Shift" -> {
-                if (currentLayout === urduLayout || currentLayout === urduShiftLayout) {
-                    // Urdu layout: Shift swaps to the alternate Urdu character set
-                    // (ٹ ڈ ڑ ث ژ etc.) instead of the usual caps behavior.
-                    currentLayout = if (currentLayout === urduLayout) urduShiftLayout else urduLayout
-                    isShifted = currentLayout === urduShiftLayout
-                    createKeyMap(width, height)
-                    postInvalidateOnAnimation()
-                } else if (isCapsLocked) {
+                if (isCapsLocked) {
                     isCapsLocked = false
                     isShifted = false
-                    postInvalidateOnAnimation()
                 } else {
                     isShifted = !isShifted
-                    postInvalidateOnAnimation()
                 }
+                postInvalidateOnAnimation()
             }
             "Del" -> {
                 // Keep the buffer in sync with what's actually on screen, so a later
@@ -1454,13 +1204,6 @@ class KeyboardView @JvmOverloads constructor(
             "123" -> {
                 finalizeRomanBuffer()
                 currentLayout = numberLayout
-                createKeyMap(width, height)
-                postInvalidateOnAnimation()
-            }
-            "اردو" -> {
-                finalizeRomanBuffer()
-                currentLayout = urduLayout
-                isShifted = false
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
@@ -1498,31 +1241,9 @@ class KeyboardView @JvmOverloads constructor(
                 finalizeRomanBuffer()
                 keyListener?.onKey(-11, "Mic")
             }
-            "KbSettings" -> {
-                keyListener?.onKey(-15, "KbSettings")
-            }
             else -> {
-                // FIX: native Urdu script layout — commit the character as-is and
-                // skip the roman buffer/suggestion pipeline entirely (that pipeline
-                // is for the separate roman-transliteration "Urdu" toggle mode).
-                if (currentLayout === urduLayout || currentLayout === urduShiftLayout) {
-                    keyListener?.onKey(label.hashCode(), label)
-                    if (currentLayout === urduShiftLayout && label.length == 1) {
-                        currentLayout = urduLayout
-                        isShifted = false
-                        createKeyMap(width, height)
-                        postInvalidateOnAnimation()
-                    }
-                    return
-                }
-
                 // FIX: tapping the just-copied clip suggestion pastes it directly
                 // and reverts the strip back to normal Urdu/English suggestions.
-                if (label == "adBanner") {
-                    keyListener?.onKey(-20, "adBanner")
-                    return
-                }
-
                 if (label == "clipSugg") {
                     val text = pendingClipboardSuggestion
                     if (text != null) {
@@ -1632,15 +1353,12 @@ class KeyboardView @JvmOverloads constructor(
             alp = (255 * (1 - p)).toInt()
         }
 
-            fun draw(canvas: Canvas) {
-        val pt = Paint()
-        pt.isAntiAlias = true
-        val acc = activeTheme.accentColor
-        pt.color = if (activeTheme.type == ThemeType.ANIMATED_MULTI)
-            Color.argb(alp, 255, 255, 255)
-        else Color.argb(alp, Color.red(acc), Color.green(acc), Color.blue(acc))
-        canvas.drawCircle(cx, cy, radius, pt)
-    }
+        fun draw(canvas: Canvas) {
+            val pt = Paint()
+            pt.isAntiAlias = true
+            pt.color = Color.argb(alp, 255, 255, 255)
+            canvas.drawCircle(cx, cy, radius, pt)
+        }
     }
 
     private inner class PopupEffect(
