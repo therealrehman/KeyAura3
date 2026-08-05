@@ -91,7 +91,7 @@ class UnityAdsManager private constructor(context: Context) {
         UnityAds.initialize(
             context,
             GAME_ID,
-            false, // testMode = false for production
+            true, // testMode = true for testing
             object : IUnityAdsInitializationListener {
                 override fun onInitializationComplete() {
                     // SDK ready — no extra action needed; load happens on demand
