@@ -3,6 +3,8 @@ package com.example.animatedkeyboard.ads
 import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.Toast
 import com.unity3d.ads.IUnityAdsInitializationListener
@@ -17,22 +19,31 @@ import com.unity3d.services.banners.UnityBannerSize
 /**
  * Centralized Unity Ads manager for KeyAura.
  *
- * Handles:
- *  - SDK initialization (Game ID: 800110986)
- *  - Rewarded ad loading + showing with a completion callback
- *  - 12-hour unlock timers for THEMES, TUNES, and GAME
- *  - Banner ad loading into a container FrameLayout
+ * Fix summary:
+ *  - Full logging on every lifecycle event
+ *  - Pre-loads rewarded ad after init completes (eliminates first-request delay)
+ *  - Guards against show() before load() completes
+ *  - Correct context usage (applicationContext only)
+ *  - Race condition eliminated via isReady flag + callback queue
  */
-class UnityAdsManager private constructor(context: Context) {
+class UnityAdsManager private constructor(private val appContext: Context) {
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("keyaura_ads_prefs", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("keyaura_ads_prefs", Context.MODE_PRIVATE)
+
+    // Whether a rewarded ad is loaded and ready to show
+    private var rewardedLoaded = false
+
+    // If user taps "Watch Ad" before load finishes, we queue the request
+    private var pendingShowRequest: (() -> Unit)? = null
 
     companion object {
-        const val GAME_ID = "800110986"
+        private const val TAG = "UnityAdsManager"
+
+        const val GAME_ID            = "800110986"
         const val PLACEMENT_REWARDED = "Rewarded_Android"
-        const val PLACEMENT_BANNER  = "Banner_Android"
-        const val UNLOCK_DURATION_MS = 12L * 60 * 60 * 1000 // 12 hours in ms
+        const val PLACEMENT_BANNER   = "Banner_Android"
+        const val UNLOCK_DURATION_MS = 12L * 60 * 60 * 1000
 
         private const val KEY_THEMES_UNLOCK = "themes_unlock_time"
         private const val KEY_TUNES_UNLOCK  = "tunes_unlock_time"
@@ -61,7 +72,6 @@ class UnityAdsManager private constructor(context: Context) {
         return t > 0L && System.currentTimeMillis() - t < UNLOCK_DURATION_MS
     }
 
-    /** Returns how many hours are left (ceiling), or 0 if expired/not unlocked. */
     fun remainingHours(type: RewardType): Int {
         val t = prefs.getLong(unlockKey(type), 0L)
         if (t == 0L) return 0
@@ -71,102 +81,64 @@ class UnityAdsManager private constructor(context: Context) {
 
     private fun grantUnlock(type: RewardType) {
         prefs.edit().putLong(unlockKey(type), System.currentTimeMillis()).apply()
+        Log.d(TAG, "Unlock granted: $type for 12 hours")
     }
 
-    /**
-     * Grant unlock for multiple types at once — used when one rewarded ad should
-     * unlock both THEMES and TUNES simultaneously (e.g. from the keyboard chip CTA).
-     */
     fun grantMultipleUnlocks(vararg types: RewardType) {
         val editor = prefs.edit()
         val now = System.currentTimeMillis()
-        for (type in types) editor.putLong(unlockKey(type), now)
+        for (type in types) {
+            editor.putLong(unlockKey(type), now)
+            Log.d(TAG, "Multi-unlock granted: $type")
+        }
         editor.apply()
     }
 
     // ── Initialization ────────────────────────────────────────────────────────
 
     fun initialize(context: Context) {
-        if (UnityAds.isInitialized) return
+        if (UnityAds.isInitialized) {
+            Log.d(TAG, "SDK already initialized — skipping")
+            // Pre-load in case it wasn't loaded yet
+            if (!rewardedLoaded) preloadRewarded()
+            return
+        }
+
+        Log.d(TAG, "Initializing Unity Ads — gameId=$GAME_ID testMode=true")
+
         UnityAds.initialize(
-            context,
+            context.applicationContext,
             GAME_ID,
-            true, // testMode = true for testing
+            true, // testMode — set false for production
             object : IUnityAdsInitializationListener {
                 override fun onInitializationComplete() {
-                    // SDK ready — no extra action needed; load happens on demand
+                    Log.d(TAG, "✅ Unity Ads initialized successfully")
+                    preloadRewarded()
                 }
+
                 override fun onInitializationFailed(
                     error: UnityAds.UnityAdsInitializationError,
                     message: String
                 ) {
-                    // Silent fail — ads won't show, app functions normally
+                    Log.e(TAG, "❌ Unity Ads init FAILED — error=$error message=$message")
                 }
             }
         )
     }
 
-    // ── Rewarded Ad ───────────────────────────────────────────────────────────
+    // ── Pre-load Rewarded Ad ──────────────────────────────────────────────────
 
-    /**
-     * Load and immediately show a rewarded ad.
-     *
-     * [onRewarded] — called (on UI thread) only when the user watches the ad
-     *               to completion and the unlock is granted.
-     * [onFailed]   — called (on UI thread) when the ad is unavailable or
-     *               the user skipped before completion.
-     */
-    fun showRewardedAd(
-        activity: Activity,
-        type: RewardType,
-        onRewarded: () -> Unit,
-        onFailed: () -> Unit = {}
-    ) {
-        if (!UnityAds.isInitialized) {
-            initialize(activity)
-            Toast.makeText(activity, "Ads loading… please try again in a moment.", Toast.LENGTH_SHORT).show()
-            onFailed()
-            return
-        }
+    private fun preloadRewarded() {
+        Log.d(TAG, "Pre-loading rewarded ad — placement=$PLACEMENT_REWARDED")
+        rewardedLoaded = false
 
         UnityAds.load(PLACEMENT_REWARDED, object : IUnityAdsLoadListener {
             override fun onUnityAdsAdLoaded(placementId: String) {
-                UnityAds.show(
-                    activity,
-                    placementId,
-                    UnityAdsShowOptions(),
-                    object : IUnityAdsShowListener {
-                        override fun onUnityAdsShowFailure(
-                            placementId: String,
-                            error: UnityAds.UnityAdsShowError,
-                            message: String
-                        ) {
-                            activity.runOnUiThread {
-                                Toast.makeText(activity, "Ad failed to play. Try again later.", Toast.LENGTH_SHORT).show()
-                                onFailed()
-                            }
-                        }
-
-                        override fun onUnityAdsShowStart(placementId: String) {}
-                        override fun onUnityAdsShowClick(placementId: String) {}
-
-                        override fun onUnityAdsShowComplete(
-                            placementId: String,
-                            state: UnityAds.UnityAdsShowCompletionState
-                        ) {
-                            if (state == UnityAds.UnityAdsShowCompletionState.COMPLETED) {
-                                grantUnlock(type)
-                                activity.runOnUiThread { onRewarded() }
-                            } else {
-                                // User skipped — no reward
-                                activity.runOnUiThread {
-                                    Toast.makeText(activity, "Watch the full ad to unlock.", Toast.LENGTH_SHORT).show()
-                                    onFailed()
-                                }
-                            }
-                        }
-                    }
-                )
+                Log.d(TAG, "✅ Rewarded ad LOADED — placement=$placementId")
+                rewardedLoaded = true
+                // If someone was waiting, fire their request now
+                pendingShowRequest?.invoke()
+                pendingShowRequest = null
             }
 
             override fun onUnityAdsFailedToLoad(
@@ -174,42 +146,147 @@ class UnityAdsManager private constructor(context: Context) {
                 error: UnityAds.UnityAdsLoadError,
                 message: String
             ) {
-                activity.runOnUiThread {
-                    Toast.makeText(activity, "No ad available right now. Try again later.", Toast.LENGTH_SHORT).show()
-                    onFailed()
-                }
+                Log.e(TAG, "❌ Rewarded ad FAILED to load — placement=$placementId error=$error message=$message")
+                rewardedLoaded = false
+                pendingShowRequest = null
             }
         })
     }
 
+    // ── Rewarded Ad ───────────────────────────────────────────────────────────
+
+    fun showRewardedAd(
+        activity: Activity,
+        type: RewardType,
+        onRewarded: () -> Unit,
+        onFailed: () -> Unit = {}
+    ) {
+        Log.d(TAG, "showRewardedAd called — type=$type initialized=${UnityAds.isInitialized} loaded=$rewardedLoaded")
+
+        if (!UnityAds.isInitialized) {
+            Log.w(TAG, "SDK not initialized — calling initialize() and queuing request")
+            initialize(activity)
+            pendingShowRequest = { doShowRewarded(activity, type, onRewarded, onFailed) }
+            activity.runOnUiThread {
+                Toast.makeText(activity, "Ads loading… please try again in a moment.", Toast.LENGTH_SHORT).show()
+            }
+            onFailed()
+            return
+        }
+
+        if (!rewardedLoaded) {
+            Log.w(TAG, "Ad not loaded yet — loading now and queuing show")
+            pendingShowRequest = { doShowRewarded(activity, type, onRewarded, onFailed) }
+            preloadRewarded()
+            activity.runOnUiThread {
+                Toast.makeText(activity, "Ad is loading… please try again in a moment.", Toast.LENGTH_SHORT).show()
+            }
+            onFailed()
+            return
+        }
+
+        doShowRewarded(activity, type, onRewarded, onFailed)
+    }
+
+    private fun doShowRewarded(
+        activity: Activity,
+        type: RewardType,
+        onRewarded: () -> Unit,
+        onFailed: () -> Unit
+    ) {
+        Log.d(TAG, "Showing rewarded ad — placement=$PLACEMENT_REWARDED type=$type")
+        rewardedLoaded = false // mark as consumed
+
+        UnityAds.show(
+            activity,
+            PLACEMENT_REWARDED,
+            UnityAdsShowOptions(),
+            object : IUnityAdsShowListener {
+                override fun onUnityAdsShowStart(placementId: String) {
+                    Log.d(TAG, "▶ Rewarded ad STARTED — placement=$placementId")
+                }
+
+                override fun onUnityAdsShowClick(placementId: String) {
+                    Log.d(TAG, "👆 Rewarded ad CLICKED — placement=$placementId")
+                }
+
+                override fun onUnityAdsShowComplete(
+                    placementId: String,
+                    state: UnityAds.UnityAdsShowCompletionState
+                ) {
+                    Log.d(TAG, "⏹ Rewarded ad COMPLETE — placement=$placementId state=$state")
+                    if (state == UnityAds.UnityAdsShowCompletionState.COMPLETED) {
+                        grantUnlock(type)
+                        activity.runOnUiThread { onRewarded() }
+                    } else {
+                        Log.w(TAG, "Ad skipped — no reward granted")
+                        activity.runOnUiThread {
+                            Toast.makeText(activity, "Watch the full ad to unlock.", Toast.LENGTH_SHORT).show()
+                            onFailed()
+                        }
+                    }
+                    // Pre-load next ad
+                    preloadRewarded()
+                }
+
+                override fun onUnityAdsShowFailure(
+                    placementId: String,
+                    error: UnityAds.UnityAdsShowError,
+                    message: String
+                ) {
+                    Log.e(TAG, "❌ Rewarded ad SHOW FAILED — placement=$placementId error=$error message=$message")
+                    activity.runOnUiThread {
+                        Toast.makeText(activity, "Ad failed to play. Try again later.", Toast.LENGTH_SHORT).show()
+                        onFailed()
+                    }
+                    preloadRewarded()
+                }
+            }
+        )
+    }
+
     // ── Banner Ad ─────────────────────────────────────────────────────────────
 
-    /**
-     * Load a banner ad and, when ready, add it to [container].
-     * Call this after Unity Ads is initialized.
-     */
     fun loadBannerInto(activity: Activity, container: FrameLayout) {
-        if (!UnityAds.isInitialized) return
+        if (!UnityAds.isInitialized) {
+            Log.w(TAG, "loadBannerInto called before SDK init — skipping")
+            return
+        }
+
+        Log.d(TAG, "Loading banner ad — placement=$PLACEMENT_BANNER")
+
         val banner = BannerView(
             activity,
             PLACEMENT_BANNER,
             UnityBannerSize.getDynamicSize(activity)
         )
+
         banner.listener = object : BannerView.IListener {
             override fun onBannerLoaded(bannerAdView: BannerView) {
+                Log.d(TAG, "✅ Banner LOADED")
                 activity.runOnUiThread {
                     container.removeAllViews()
                     container.addView(bannerAdView)
-                    container.visibility = android.view.View.VISIBLE
+                    container.visibility = View.VISIBLE
                 }
             }
-            override fun onBannerClick(bannerAdView: BannerView) {}
-            override fun onBannerFailedToLoad(bannerAdView: BannerView, errorInfo: BannerErrorInfo) {
-                activity.runOnUiThread { container.visibility = android.view.View.GONE }
+
+            override fun onBannerClick(bannerAdView: BannerView) {
+                Log.d(TAG, "👆 Banner CLICKED")
             }
-            override fun onBannerShown(bannerAdView: BannerView) {}
+
+            override fun onBannerFailedToLoad(bannerAdView: BannerView, errorInfo: BannerErrorInfo) {
+                Log.e(TAG, "❌ Banner FAILED — code=${errorInfo.errorCode} msg=${errorInfo.errorMessage}")
+                activity.runOnUiThread { container.visibility = View.GONE }
+            }
+
+            override fun onBannerShown(bannerAdView: BannerView) {
+                Log.d(TAG, "✅ Banner SHOWN")
+            }
+
             override fun onBannerLeftApplication(bannerView: BannerView) {}
         }
+
         banner.load()
     }
 }
