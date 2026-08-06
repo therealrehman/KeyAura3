@@ -10,22 +10,16 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.example.animatedkeyboard.ads.UnityAdsManager
-import com.example.animatedkeyboard.ads.UnityAdsManager.RewardType
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
 
 class TuneSelectionActivity : AppCompatActivity() {
 
     private val settings by lazy { KeyboardSettings.getInstance(this) }
-    private val ads      by lazy { UnityAdsManager.getInstance(this) }
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var previewPool: SoundPool
     private val rowViews = mutableListOf<LinearLayout>()
-
-    private lateinit var unlockStatusView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,19 +37,18 @@ class TuneSelectionActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.tuneListContainer)
 
-        // ── Unlock status banner (injected at top) ────────────────────────
-        unlockStatusView = TextView(this).apply {
+        // Status banner — always unlocked
+        val statusView = TextView(this).apply {
+            text = "✅ All swipe tunes unlocked"
             textSize = 13f
+            setTextColor(Color.parseColor("#00C853"))
             setPadding(dp(16), dp(12), dp(16), dp(8))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            isClickable = true
-            isFocusable = true
         }
-        container.addView(unlockStatusView, 0)
-        updateUnlockBanner()
+        container.addView(statusView, 0)
 
         for (i in KeySoundEngine.TUNE_NAMES.indices) {
             val row = buildTuneRow(i)
@@ -67,39 +60,7 @@ class TuneSelectionActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updateUnlockBanner()
         refreshRowStyles()
-    }
-
-    private fun updateUnlockBanner() {
-        if (ads.isUnlocked(RewardType.TUNES)) {
-            val h = ads.remainingHours(RewardType.TUNES)
-            unlockStatusView.text = "✅ All tunes unlocked — ${h}h remaining"
-            unlockStatusView.setTextColor(Color.parseColor("#00C853"))
-            unlockStatusView.setOnClickListener(null)
-        } else {
-            unlockStatusView.text = "🔒 Tap here to watch an ad and unlock all tunes for 12 hours"
-            unlockStatusView.setTextColor(Color.parseColor("#FFC400"))
-            unlockStatusView.setOnClickListener { showAdDialog() }
-        }
-    }
-
-    private fun showAdDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("🎶 Unlock All Swipe Tunes")
-            .setMessage("Watch a short ad to unlock all 10 swipe tunes for 12 hours.")
-            .setPositiveButton("▶ Watch Ad") { _, _ ->
-                ads.showRewardedAd(
-                    activity   = this,
-                    type       = RewardType.TUNES,
-                    onRewarded = {
-                        updateUnlockBanner()
-                        refreshRowStyles()
-                    }
-                )
-            }
-            .setNegativeButton("Not now", null)
-            .show()
     }
 
     private fun buildTuneRow(index: Int): LinearLayout {
@@ -120,71 +81,38 @@ class TuneSelectionActivity : AppCompatActivity() {
         val label = TextView(this).apply {
             text = KeySoundEngine.TUNE_NAMES[index]
             textSize = 17f
-            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            layoutParams = lp
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             tag = "label"
         }
 
-        val lockIcon = TextView(this).apply {
-            text = "🔒"
-            textSize = 14f
-            tag = "lock"
-            setPadding(dp(4), 0, dp(4), 0)
-        }
-
         val checkmark = TextView(this).apply {
-            text = "\u2713" // ✓
+            text = "\u2713"
             textSize = 18f
             setTextColor(0xFF4488FF.toInt())
             tag = "check"
         }
 
         row.addView(label)
-        row.addView(lockIcon)
         row.addView(checkmark)
 
         row.setOnClickListener {
-            val isLocked = !ads.isUnlocked(RewardType.TUNES)
-
-            if (isLocked) {
-                showAdDialog()
-            } else {
-                settings.selectedTuneIndex = index
-                refreshRowStyles()
-                playPreview(index)
-            }
+            settings.selectedTuneIndex = index
+            refreshRowStyles()
+            playPreview(index)
         }
         return row
     }
 
     private fun refreshRowStyles() {
-        val selected  = settings.selectedTuneIndex
-        val unlocked  = ads.isUnlocked(RewardType.TUNES)
-
+        val selected = settings.selectedTuneIndex
         for ((i, row) in rowViews.withIndex()) {
             val isSelected = i == selected
-            val isLocked   = !unlocked
-
             row.setBackgroundResource(
                 if (isSelected) R.drawable.bg_tune_row_selected else R.drawable.bg_tune_row
             )
-
-            // Label color
-            row.findViewWithTag<TextView>("label")?.apply {
-                setTextColor(
-                    when {
-                        isSelected -> 0xFFFFFFFF.toInt()
-                        isLocked   -> 0xFF555878.toInt()
-                        else       -> 0xFFBBBBBB.toInt()
-                    }
-                )
-            }
-
-            // Lock icon
-            row.findViewWithTag<TextView>("lock")?.visibility =
-                if (isLocked) View.VISIBLE else View.GONE
-
-            // Checkmark
+            row.findViewWithTag<TextView>("label")?.setTextColor(
+                if (isSelected) 0xFFFFFFFF.toInt() else 0xFFBBBBBB.toInt()
+            )
             row.findViewWithTag<TextView>("check")?.visibility =
                 if (isSelected) View.VISIBLE else View.INVISIBLE
         }

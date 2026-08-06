@@ -17,11 +17,8 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
-import com.example.animatedkeyboard.ads.UnityAdsManager
-import com.example.animatedkeyboard.ads.UnityAdsManager.RewardType
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.theme.KeyboardTheme
 import com.example.animatedkeyboard.theme.ThemeRepository
@@ -32,7 +29,6 @@ import kotlin.math.roundToInt
 class MainActivity : AppCompatActivity() {
 
     private val settings by lazy { KeyboardSettings.getInstance(this) }
-    private val ads     by lazy { UnityAdsManager.getInstance(this) }
     private fun dp(v: Float) = v * resources.displayMetrics.density
     private fun dpi(v: Float) = dp(v).toInt()
 
@@ -57,13 +53,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // ── Unity Ads: initialize SDK and load banner ─────────────────────
-        ads.initialize(this)
-        val bannerContainer = findViewById<FrameLayout>(R.id.bannerContainer)
-        // Slight delay so SDK finishes init before requesting the banner
-        bannerContainer.postDelayed({
-            ads.loadBannerInto(this, bannerContainer)
-        }, 2000)
+        // Hide banner container — no ads
+        findViewById<FrameLayout>(R.id.bannerContainer)?.visibility = View.GONE
 
         applyLogoGradient(findViewById(R.id.logoText))
 
@@ -108,38 +99,14 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
 
-        // ── Swipe Tune card: check unlock before opening ──────────────────
+        // Swipe Tune — directly open, no lock
         findViewById<CardView>(R.id.btnTune).setOnClickListener {
-            if (ads.isUnlocked(RewardType.TUNES)) {
-                startActivity(Intent(this, TuneSelectionActivity::class.java))
-            } else {
-                showAdDialog(
-                    title = "🎶 Unlock Swipe Tunes",
-                    message = "Watch a short ad to unlock all 10 swipe tunes for 12 hours.",
-                    type = RewardType.TUNES,
-                    onUnlocked = {
-                        updateAdStatusViews()
-                        startActivity(Intent(this, TuneSelectionActivity::class.java))
-                    }
-                )
-            }
+            startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
-        // ── Game Unlock card ──────────────────────────────────────────────
+        // Game — directly show unlocked message
         findViewById<CardView>(R.id.gameUnlockCard).setOnClickListener {
-            if (ads.isUnlocked(RewardType.GAME)) {
-                Toast.makeText(this, "Game is unlocked! Open the game from the keyboard 🎮", Toast.LENGTH_LONG).show()
-            } else {
-                showAdDialog(
-                    title = "🎮 Unlock Birdy Bird Game",
-                    message = "Watch a short ad to unlock the Birdy Bird mini-game in your keyboard for 12 hours.",
-                    type = RewardType.GAME,
-                    onUnlocked = {
-                        updateAdStatusViews()
-                        Toast.makeText(this, "Game unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
-                    }
-                )
-            }
+            Toast.makeText(this, "Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
         }
 
         findViewById<TextView>(R.id.btnClearImage).setOnClickListener {
@@ -150,13 +117,6 @@ class MainActivity : AppCompatActivity() {
 
         buildThemeRows()
         updateAdStatusViews()
-
-        // If launched from the keyboard's "Watch Ad · Unlock Themes" chip, auto-show the dialog.
-        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
-            findViewById<android.view.View>(android.R.id.content).postDelayed({
-                autoShowThemeAdDialog()
-            }, 500)
-        }
     }
 
     override fun onResume() {
@@ -167,144 +127,54 @@ class MainActivity : AppCompatActivity() {
         updateAdStatusViews()
     }
 
-    // Called when the activity is already running and receives a new intent
-    // (e.g. user tapped "Watch Ad · Unlock Themes" chip inside the keyboard).
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
-            // Small delay so the activity is fully visible before the dialog appears.
-            findViewById<android.view.View>(android.R.id.content).postDelayed({
-                autoShowThemeAdDialog()
-            }, 300)
-        }
     }
 
-    /**
-     * Shows the rewarded-ad dialog immediately — triggered when the user taps the
-     * "Watch Ad · Unlock Themes" chip inside the keyboard.
-     * Watching the ad grants both THEMES and TUNES unlocks for 12 hours.
-     */
-    private fun autoShowThemeAdDialog() {
-        if (ads.isUnlocked(RewardType.THEMES)) {
-            // Already unlocked — just refresh the UI and show remaining time.
-            updateAdStatusViews()
-            buildThemeRows()
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("✨ Unlock Animated Themes")
-            .setMessage("Watch a short ad to unlock all animated themes for 12 hours.\n\nAfter 12 hours, just watch another ad to unlock again.")
-            .setPositiveButton("▶ Watch Ad") { _, _ ->
-                ads.showRewardedAd(
-                    activity  = this,
-                    type      = RewardType.THEMES,
-                    onRewarded = {
-                        updateAdStatusViews()
-                        buildThemeRows()
-                        Toast.makeText(this,
-                            "🎉 Animated themes unlocked for 12 hours!",
-                            Toast.LENGTH_LONG).show()
-                    },
-                    onFailed  = { /* toast already shown in UnityAdsManager */ }
-                )
-            }
-            .setNegativeButton("Not now", null)
-            .show()
-    }
-
-    // ── Ad status badges ──────────────────────────────────────────────────────
+    // ── Ad status views — show everything as unlocked ─────────────────────────
 
     private fun updateAdStatusViews() {
-        // Animated themes status label
-        val themesStatus = findViewById<TextView>(R.id.themesAdStatus)
-        if (ads.isUnlocked(RewardType.THEMES)) {
-            val h = ads.remainingHours(RewardType.THEMES)
-            themesStatus.text = "✅ Animated themes unlocked — ${h}h remaining"
-            themesStatus.setTextColor(Color.parseColor("#00C853"))
-            themesStatus.visibility = View.VISIBLE
-        } else {
-            themesStatus.text = "🔒 Tap any animated theme to watch an ad and unlock for 12h"
-            themesStatus.setTextColor(Color.parseColor("#FFC400"))
-            themesStatus.visibility = View.VISIBLE
+        findViewById<TextView>(R.id.themesAdStatus)?.apply {
+            text = "✅ All animated themes unlocked"
+            setTextColor(Color.parseColor("#00C853"))
+            visibility = View.VISIBLE
         }
-
-        // Tunes status label
-        val tuneStatus = findViewById<TextView>(R.id.tuneAdStatus)
-        if (ads.isUnlocked(RewardType.TUNES)) {
-            val h = ads.remainingHours(RewardType.TUNES)
-            tuneStatus.text = "✅ Swipe tunes unlocked — ${h}h remaining"
-            tuneStatus.setTextColor(Color.parseColor("#00C853"))
-            tuneStatus.visibility = View.VISIBLE
-        } else {
-            tuneStatus.text = "🔒 Watch an ad to unlock all tunes for 12h"
-            tuneStatus.setTextColor(Color.parseColor("#FFC400"))
-            tuneStatus.visibility = View.VISIBLE
+        findViewById<TextView>(R.id.tuneAdStatus)?.apply {
+            text = "✅ All swipe tunes unlocked"
+            setTextColor(Color.parseColor("#00C853"))
+            visibility = View.VISIBLE
         }
-
-        // Game status
-        val gameStatus  = findViewById<TextView>(R.id.gameAdStatus)
-        val gameArrow   = findViewById<TextView>(R.id.gameUnlockArrow)
-        if (ads.isUnlocked(RewardType.GAME)) {
-            val h = ads.remainingHours(RewardType.GAME)
-            gameStatus.text = "✅ Game unlocked — ${h}h remaining. Open keyboard to play!"
-            gameStatus.setTextColor(Color.parseColor("#00C853"))
-            gameArrow.text = "✓"
-            gameArrow.setTextColor(Color.parseColor("#00C853"))
-        } else {
-            gameStatus.text = "🔒 Watch an ad to unlock for 12h"
-            gameStatus.setTextColor(Color.parseColor("#FFC400"))
-            gameArrow.text = "›"
-            gameArrow.setTextColor(Color.parseColor("#4488FF"))
+        findViewById<TextView>(R.id.gameAdStatus)?.apply {
+            text = "✅ Game unlocked — open keyboard to play!"
+            setTextColor(Color.parseColor("#00C853"))
+        }
+        findViewById<TextView>(R.id.gameUnlockArrow)?.apply {
+            text = "✓"
+            setTextColor(Color.parseColor("#00C853"))
         }
     }
 
-    // ── Rewarded Ad dialog helper ─────────────────────────────────────────────
-
-    private fun showAdDialog(
-        title: String,
-        message: String,
-        type: RewardType,
-        onUnlocked: () -> Unit
-    ) {
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton("▶ Watch Ad") { _, _ ->
-                ads.showRewardedAd(
-                    activity  = this,
-                    type      = type,
-                    onRewarded = onUnlocked,
-                    onFailed  = { /* toast already shown in UnityAdsManager */ }
-                )
-            }
-            .setNegativeButton("Not now", null)
-            .show()
-    }
-
-    // ── Theme Rows ────────────────────────────────────────────────────────────
+    // ── Theme Rows — all unlocked ─────────────────────────────────────────────
 
     private fun buildThemeRows() {
         val selected = settings.selectedThemeId
 
-        // Animated row: Aurora + 10 single-color + Photo tile
         val animRow = findViewById<LinearLayout>(R.id.animatedThemeRow)
         animRow.removeAllViews()
         val animList = listOf(ThemeRepository.defaultTheme) + ThemeRepository.animatedThemes +
                 listOf(ThemeRepository.imageTheme)
-        for (t in animList) animRow.addView(themeCard(t, selected == t.id, isAnimated = true))
+        for (t in animList) animRow.addView(themeCard(t, selected == t.id))
 
-        // Solid row: Midnight/Forest/Wine/Slate/Royal/White/Grey/Black
         val solidRow = findViewById<LinearLayout>(R.id.solidThemeRow)
         solidRow.removeAllViews()
-        for (t in ThemeRepository.solidThemes) solidRow.addView(themeCard(t, selected == t.id, isAnimated = false))
+        for (t in ThemeRepository.solidThemes) solidRow.addView(themeCard(t, selected == t.id))
 
-        // Show/hide "Clear photo" button
         findViewById<TextView>(R.id.btnClearImage).visibility =
             if (settings.keyboardImagePath != null) View.VISIBLE else View.GONE
     }
 
-    private fun themeCard(theme: KeyboardTheme, selected: Boolean, isAnimated: Boolean): View {
+    private fun themeCard(theme: KeyboardTheme, selected: Boolean): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -355,41 +225,12 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
-                // Dim animated themes that are locked
-                if (isAnimated && theme.type != ThemeType.CUSTOM_IMAGE
-                    && !ads.isUnlocked(RewardType.THEMES)) {
-                    alpha = 0.35f
-                }
-            })
-        }
-
-        // Lock icon overlay for locked animated themes
-        val isLockedAnimated = isAnimated
-            && theme.type != ThemeType.CUSTOM_IMAGE
-            && !ads.isUnlocked(RewardType.THEMES)
-
-        if (isLockedAnimated) {
-            card.addView(TextView(this).apply {
-                text = "🔒"
-                textSize = 10f
-                gravity = Gravity.CENTER
-                setTextColor(Color.parseColor("#FFC400"))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dpi(2f) }
             })
         }
 
         card.addView(TextView(this).apply {
             text = theme.name; textSize = 11f
-            setTextColor(
-                when {
-                    selected          -> theme.accentColor
-                    isLockedAnimated  -> Color.parseColor("#555878")
-                    else              -> Color.parseColor("#AAB0C8")
-                }
-            )
+            setTextColor(if (selected) theme.accentColor else Color.parseColor("#AAB0C8"))
             gravity = Gravity.CENTER; maxLines = 1
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -398,27 +239,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         card.setOnClickListener {
-            when {
-                theme.type == ThemeType.CUSTOM_IMAGE -> pickImage.launch("image/*")
-                isLockedAnimated -> {
-                    // Offer rewarded ad to unlock all animated themes
-                    showAdDialog(
-                        title     = "✨ Unlock Animated Themes",
-                        message   = "Watch a short ad to unlock all animated themes for 12 hours.",
-                        type      = RewardType.THEMES,
-                        onUnlocked = {
-                            buildThemeRows()
-                            updateAdStatusViews()
-                            // Now apply the theme they wanted
-                            settings.selectedThemeId = theme.id
-                            buildThemeRows()
-                        }
-                    )
-                }
-                else -> {
-                    settings.selectedThemeId = theme.id
-                    buildThemeRows()
-                }
+            if (theme.type == ThemeType.CUSTOM_IMAGE) {
+                pickImage.launch("image/*")
+            } else {
+                settings.selectedThemeId = theme.id
+                buildThemeRows()
             }
         }
         return card

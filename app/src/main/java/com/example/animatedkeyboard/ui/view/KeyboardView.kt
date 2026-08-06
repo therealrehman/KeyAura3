@@ -18,7 +18,6 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import com.example.animatedkeyboard.ads.UnityAdsManager
 import com.example.animatedkeyboard.audio.KeySoundEngine
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.urdu.UrduSuggestionRepository
@@ -45,7 +44,6 @@ class KeyboardView @JvmOverloads constructor(
     private var capsLockRunnable: Runnable? = null
 
     private val settings by lazy { KeyboardSettings.getInstance(context) }
-    private val adsManager by lazy { UnityAdsManager.getInstance(context) }
     private val soundEngine by lazy { KeySoundEngine(context) }
     private val urduRepo by lazy { UrduSuggestionRepository.getInstance(context) }
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
@@ -208,17 +206,8 @@ class KeyboardView @JvmOverloads constructor(
     /** IME har keyboard show par call karta hai — nayi theme foran apply. */
     fun refreshTheme() {
         val resolved = ThemeRepository.resolve(settings)
-        // If animated themes are not unlocked via rewarded ad, fall back to a solid theme
-        // so fresh-install users see a static keyboard (not the rainbow animation).
-        activeTheme = if (
-            !adsManager.isUnlocked(UnityAdsManager.RewardType.THEMES) &&
-            (resolved.type == ThemeType.ANIMATED_MULTI || resolved.type == ThemeType.ANIMATED_SINGLE)
-        ) {
-            ThemeRepository.solidThemes.firstOrNull { it.id == "solid_slate" }
-                ?: ThemeRepository.solidThemes.first()
-        } else {
-            resolved
-        }
+        // All themes unlocked
+        activeTheme = resolved
         when (activeTheme.type) {
             ThemeType.ANIMATED_MULTI -> {
                 animationEngine.singleThemeColor = null
@@ -574,11 +563,7 @@ class KeyboardView @JvmOverloads constructor(
         // fill the chip area with a persistent "Watch Ad to Unlock" CTA.
         // The chip only disappears when the user taps it, watches the rewarded ad,
         // and the 12-hour unlock is granted — it never auto-dismisses.
-        if (!adsManager.isUnlocked(UnityAdsManager.RewardType.THEMES) && suggestions.isEmpty()) {
-            keyMap["watchAdChip"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
-            keyStates.putIfAbsent("watchAdChip", KeyState.NORMAL)
-            return
-        }
+
 
         if (suggestions.isEmpty()) return
         val chipWidth = (chipsAvailableWidth - hGap * (suggestions.size - 1)) / suggestions.size
@@ -790,7 +775,6 @@ class KeyboardView @JvmOverloads constructor(
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
             "KbSettings" -> drawSettingsIcon(canvas, rect, textPaint.color)
-            "watchAdChip" -> drawWatchAdChip(canvas, rect)
             else -> if (label == "clipSugg") {
                 drawFittedChipText(canvas, pendingClipboardPreview, rect)
             } else if (label.startsWith("sugg")) {
@@ -875,46 +859,6 @@ class KeyboardView @JvmOverloads constructor(
         canvas.drawCircle(cx, cy, innerR, holePaint)
     }
 
-    /**
-     * Draws the "▶ Watch Ad · Unlock Themes" chip in the suggestion strip.
-     * Shown whenever themes/tunes are locked (no ad watched yet, or 12h expired).
-     * Uses a golden accent with a glow so it reads as a CTA, not a normal chip.
-     */
-    private fun drawWatchAdChip(canvas: Canvas, rect: Rect) {
-        val l = rect.left.toFloat(); val t = rect.top.toFloat()
-        val r = rect.right.toFloat(); val b = rect.bottom.toFloat()
-        val margin = dp(2f); val corner = dp(8f)
-
-        // Background: dark with gold border glow
-        val bgPaint = Paint().apply {
-            color = Color.parseColor("#1A1500")
-            isAntiAlias = true
-            style = Paint.Style.FILL
-        }
-        val borderPaint = Paint().apply {
-            color = Color.parseColor("#FFC400")
-            isAntiAlias = true
-            style = Paint.Style.STROKE
-            strokeWidth = dp(1f)
-            setShadowLayer(dp(6f), 0f, 0f, Color.parseColor("#FFC400"))
-        }
-        val chipRectF = android.graphics.RectF(l + margin, t + margin, r - margin, b - margin)
-        canvas.drawRoundRect(chipRectF, corner, corner, bgPaint)
-        canvas.drawRoundRect(chipRectF, corner, corner, borderPaint)
-
-        // Text: "▶ Watch Ad · Unlock Themes"
-        val textP = Paint().apply {
-            isAntiAlias = true
-            color = Color.parseColor("#FFC400")
-            textAlign = Paint.Align.CENTER
-            textSize = dp(9.5f)
-            typeface = Typeface.DEFAULT_BOLD
-            setShadowLayer(dp(4f), 0f, 0f, Color.parseColor("#996600"))
-        }
-        val cx = rect.exactCenterX()
-        val cy = rect.exactCenterY() + textP.textSize * 0.35f
-        canvas.drawText("▶ Watch Ad · Unlock Themes", cx, cy, textP)
-    }
 
     private fun drawFittedChipText(canvas: Canvas, word: String, rect: Rect) {
         if (word.isEmpty()) return
@@ -1335,7 +1279,7 @@ class KeyboardView @JvmOverloads constructor(
                 }
 
                 // Swipe tunes are locked behind a rewarded ad; also skip if user has no tune selected (-1).
-                val tunesUnlocked = adsManager.isUnlocked(UnityAdsManager.RewardType.TUNES)
+                val tunesUnlocked = true
                 if (settings.soundEnabled && tunesUnlocked && settings.selectedTuneIndex >= 0
                     && label != lastSwipeKeyLabel && width > 0) {
                     lastSwipeKeyLabel = label
@@ -1508,13 +1452,6 @@ class KeyboardView @JvmOverloads constructor(
                         createKeyMap(width, height)
                         postInvalidateOnAnimation()
                     }
-                    return
-                }
-
-                // "Watch Ad to Unlock Themes" chip — launch MainActivity to show rewarded ad.
-                // The chip only dismisses after the ad is watched and the 12-hour unlock is granted.
-                if (label == "watchAdChip") {
-                    keyListener?.onKey(-16, "WatchAd")
                     return
                 }
 

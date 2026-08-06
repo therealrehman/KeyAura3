@@ -14,7 +14,6 @@
         android:theme="@style/Theme.KeyAura"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- Main Launcher Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,26 +24,22 @@
             </intent-filter>
         </activity>
 
-        <!-- About Activity -->
         <activity
             android:name=".AboutActivity"
             android:exported="false"
             android:theme="@style/Theme.KeyAura" />
 
-        <!-- Tune Selection Activity -->
         <activity
             android:name=".TuneSelectionActivity"
             android:exported="false"
             android:theme="@style/Theme.KeyAura" />
 
-        <!-- Speech Permission Activity (transparent, launched from the IME service) -->
         <activity
             android:name=".SpeechPermissionActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
-        <!-- Keyboard IME Service -->
         <service
             android:name=".service.AnimatedKeyboardIME"
             android:exported="true"
@@ -57,35 +52,7 @@
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
-        <!-- Unity Ads required activities -->
-        <activity
-            android:name="com.unity3d.ads.adunit.AdUnitActivity"
-            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
-            android:exported="false"
-            android:hardwareAccelerated="true"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
-        <activity
-            android:name="com.unity3d.ads.adunit.AdUnitTransparentActivity"
-            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
-            android:exported="false"
-            android:hardwareAccelerated="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
-        <activity
-            android:name="com.unity3d.ads.adunit.AdUnitSoftwareActivity"
-            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
-            android:exported="false"
-            android:hardwareAccelerated="false"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
-        <activity
-            android:name="com.unity3d.ads.adunit.AdUnitTransparentSoftwareActivity"
-            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
-            android:exported="false"
-            android:hardwareAccelerated="false"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
-        <!-- FIX: needed so clipboard image paste can share a content:// URI that
-             other apps (WhatsApp etc.) are actually allowed to read — a raw
-             file:// path into our private storage is blocked on API 24+. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
