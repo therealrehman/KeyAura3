@@ -19,6 +19,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import com.example.animatedkeyboard.ads.AdMobManager
+import com.example.animatedkeyboard.ads.AdMobManager.RewardType
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.theme.KeyboardTheme
 import com.example.animatedkeyboard.theme.ThemeRepository
@@ -29,6 +31,7 @@ import kotlin.math.roundToInt
 class MainActivity : AppCompatActivity() {
 
     private val settings by lazy { KeyboardSettings.getInstance(this) }
+    private val ads     by lazy { AdMobManager.getInstance(this) }
     private fun dp(v: Float) = v * resources.displayMetrics.density
     private fun dpi(v: Float) = dp(v).toInt()
 
@@ -53,8 +56,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Hide banner container — no ads
-        findViewById<FrameLayout>(R.id.bannerContainer)?.visibility = View.GONE
+        // Initialize AdMob
+        ads.initialize(this)
 
         applyLogoGradient(findViewById(R.id.logoText))
 
@@ -104,9 +107,27 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
-        // Game — directly show unlocked message
+        // Game — show ad if locked, else show message
         findViewById<CardView>(R.id.gameUnlockCard).setOnClickListener {
-            Toast.makeText(this, "Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
+            if (ads.isUnlocked(RewardType.GAME)) {
+                Toast.makeText(this, "Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
+            } else {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("🎮 Unlock Birdy Bird Game")
+                    .setMessage("Watch a short ad to unlock the game for 12 hours.")
+                    .setPositiveButton("▶ Watch Ad") { _, _ ->
+                        ads.showRewardedAd(
+                            activity   = this,
+                            type       = RewardType.GAME,
+                            onRewarded = {
+                                updateAdStatusViews()
+                                Toast.makeText(this, "🎮 Game unlocked! Open your keyboard.", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+                    .setNegativeButton("Not now", null)
+                    .show()
+            }
         }
 
         findViewById<TextView>(R.id.btnClearImage).setOnClickListener {
@@ -135,23 +156,42 @@ class MainActivity : AppCompatActivity() {
     // ── Ad status views — show everything as unlocked ─────────────────────────
 
     private fun updateAdStatusViews() {
+        // Themes status
         findViewById<TextView>(R.id.themesAdStatus)?.apply {
-            text = "✅ All animated themes unlocked"
-            setTextColor(Color.parseColor("#00C853"))
+            if (ads.isUnlocked(RewardType.THEMES)) {
+                text = "✅ Animated themes unlocked — ${ads.remainingHours(RewardType.THEMES)}h remaining"
+                setTextColor(Color.parseColor("#00C853"))
+            } else {
+                text = "🔒 Tap any animated theme to watch an ad and unlock for 12h"
+                setTextColor(Color.parseColor("#FFC400"))
+            }
             visibility = View.VISIBLE
         }
+        // Tunes status
         findViewById<TextView>(R.id.tuneAdStatus)?.apply {
-            text = "✅ All swipe tunes unlocked"
-            setTextColor(Color.parseColor("#00C853"))
+            if (ads.isUnlocked(RewardType.TUNES)) {
+                text = "✅ All swipe tunes unlocked — ${ads.remainingHours(RewardType.TUNES)}h remaining"
+                setTextColor(Color.parseColor("#00C853"))
+            } else {
+                text = "🔒 Watch an ad to unlock all tunes for 12h"
+                setTextColor(Color.parseColor("#FFC400"))
+            }
             visibility = View.VISIBLE
         }
+        // Game status
+        val gameLocked = !ads.isUnlocked(RewardType.GAME)
         findViewById<TextView>(R.id.gameAdStatus)?.apply {
-            text = "✅ Game unlocked — open keyboard to play!"
-            setTextColor(Color.parseColor("#00C853"))
+            if (!gameLocked) {
+                text = "✅ Game unlocked — open keyboard to play!"
+                setTextColor(Color.parseColor("#00C853"))
+            } else {
+                text = "🔒 Watch an ad to unlock for 12h"
+                setTextColor(Color.parseColor("#FFC400"))
+            }
         }
         findViewById<TextView>(R.id.gameUnlockArrow)?.apply {
-            text = "✓"
-            setTextColor(Color.parseColor("#00C853"))
+            text = if (!gameLocked) "✓" else "▶"
+            setTextColor(if (!gameLocked) Color.parseColor("#00C853") else Color.parseColor("#FFC400"))
         }
     }
 
@@ -241,6 +281,26 @@ class MainActivity : AppCompatActivity() {
         card.setOnClickListener {
             if (theme.type == ThemeType.CUSTOM_IMAGE) {
                 pickImage.launch("image/*")
+            } else if (
+                (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) &&
+                !ads.isUnlocked(RewardType.THEMES)
+            ) {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("✨ Unlock Animated Themes")
+                    .setMessage("Watch a short ad to unlock all animated themes for 12 hours.")
+                    .setPositiveButton("▶ Watch Ad") { _, _ ->
+                        ads.showRewardedAd(
+                            activity   = this,
+                            type       = RewardType.THEMES,
+                            onRewarded = {
+                                settings.selectedThemeId = theme.id
+                                buildThemeRows()
+                                updateAdStatusViews()
+                            }
+                        )
+                    }
+                    .setNegativeButton("Not now", null)
+                    .show()
             } else {
                 settings.selectedThemeId = theme.id
                 buildThemeRows()

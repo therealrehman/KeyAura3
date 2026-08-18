@@ -19,6 +19,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.example.animatedkeyboard.audio.KeySoundEngine
+import com.example.animatedkeyboard.ads.AdMobManager
 import com.example.animatedkeyboard.settings.KeyboardSettings
 import com.example.animatedkeyboard.urdu.UrduSuggestionRepository
 import com.example.animatedkeyboard.english.EnglishSuggestionRepository
@@ -43,7 +44,8 @@ class KeyboardView @JvmOverloads constructor(
     private var backspaceRunnable: Runnable? = null
     private var capsLockRunnable: Runnable? = null
 
-    private val settings by lazy { KeyboardSettings.getInstance(context) }
+    private val settings  by lazy { KeyboardSettings.getInstance(context) }
+    private val adsManager by lazy { AdMobManager.getInstance(context) }
     private val soundEngine by lazy { KeySoundEngine(context) }
     private val urduRepo by lazy { UrduSuggestionRepository.getInstance(context) }
     private val englishRepo by lazy { EnglishSuggestionRepository.getInstance(context) }
@@ -206,8 +208,15 @@ class KeyboardView @JvmOverloads constructor(
     /** IME har keyboard show par call karta hai — nayi theme foran apply. */
     fun refreshTheme() {
         val resolved = ThemeRepository.resolve(settings)
-        // All themes unlocked
-        activeTheme = resolved
+        activeTheme = if (
+            !adsManager.isUnlocked(AdMobManager.RewardType.THEMES) &&
+            (resolved.type == ThemeType.ANIMATED_MULTI || resolved.type == ThemeType.ANIMATED_SINGLE)
+        ) {
+            ThemeRepository.solidThemes.firstOrNull { it.id == "solid_slate" }
+                ?: ThemeRepository.solidThemes.first()
+        } else {
+            resolved
+        }
         when (activeTheme.type) {
             ThemeType.ANIMATED_MULTI -> {
                 animationEngine.singleThemeColor = null
@@ -1279,7 +1288,7 @@ class KeyboardView @JvmOverloads constructor(
                 }
 
                 // Swipe tunes are locked behind a rewarded ad; also skip if user has no tune selected (-1).
-                val tunesUnlocked = true
+                val tunesUnlocked = adsManager.isUnlocked(AdMobManager.RewardType.TUNES)
                 if (settings.soundEnabled && tunesUnlocked && settings.selectedTuneIndex >= 0
                     && label != lastSwipeKeyLabel && width > 0) {
                     lastSwipeKeyLabel = label

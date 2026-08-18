@@ -312,6 +312,15 @@ class AnimatedKeyboardIME : InputMethodService() {
 
     private fun showGamePanel() {
 
+        val adsManager = AdMobManager.getInstance(this)
+        if (!adsManager.isUnlocked(AdMobManager.RewardType.GAME)) {
+            android.widget.Toast.makeText(
+                this,
+                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 12h 🎮",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         exitEmojiSearch()
         keyboardView.visibility = View.GONE
         emojiPanelView.visibility = View.GONE
