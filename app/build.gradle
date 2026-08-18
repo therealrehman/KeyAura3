@@ -38,6 +38,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
 
+    // AdMob
     // Start.io
     implementation 'com.startapp:inapp-sdk:4.10.4'
 }
