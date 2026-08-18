@@ -125,8 +125,18 @@ class AdMobManager private constructor(private val appContext: Context) {
         }
 
         ad.showAd(object : AdDisplayListener {
-            override fun onSavedOffline() {}
-            override fun onFailedToDisplayAd() {
+            override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.d(TAG, "Ad hidden — reward granted")
+                grantUnlock(type)
+                rewardedAd = null
+                loadAd()
+                activity.runOnUiThread { onRewarded() }
+            }
+            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.d(TAG, "Ad displaying")
+            }
+            override fun adClicked(a: com.startapp.sdk.adsbase.Ad?) {}
+            override fun adNotDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
                 Log.e(TAG, "Ad failed to display")
                 rewardedAd = null
                 loadAd()
@@ -134,16 +144,6 @@ class AdMobManager private constructor(private val appContext: Context) {
                     Toast.makeText(activity, "Ad failed. Try again later.", Toast.LENGTH_SHORT).show()
                 }
                 onFailed()
-            }
-            override fun onHideAd() {
-                Log.d(TAG, "Ad hidden — reward granted")
-                grantUnlock(type)
-                rewardedAd = null
-                loadAd()
-                activity.runOnUiThread { onRewarded() }
-            }
-            override fun onDisplayAd() {
-                Log.d(TAG, "Ad displaying")
             }
         })
     }
