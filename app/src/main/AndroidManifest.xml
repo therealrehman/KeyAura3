@@ -13,12 +13,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.KeyAura"
         android:icon="@mipmap/ic_launcher">
-
-        <!-- AdMob App ID (test) — replace with real ID for production -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-6764009090264687~5131995994"/>
-
         <activity
             android:name=".MainActivity"
             android:exported="true"

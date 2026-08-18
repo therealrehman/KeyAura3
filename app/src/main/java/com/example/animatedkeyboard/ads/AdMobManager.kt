@@ -5,36 +5,26 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import android.widget.Toast
-import com.google.android.gms.ads.AdError
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.startapp.sdk.adsbase.StartAppAd
+import com.startapp.sdk.adsbase.StartAppSDK
+import com.startapp.sdk.adsbase.adlisteners.AdDisplayListener
+import com.startapp.sdk.adsbase.adlisteners.AdEventListener
 
 /**
- * Centralized AdMob Rewarded Ads manager for KeyAura.
- *
- * - Test mode: uses Google test ad unit ID
- * - 12-hour unlock timers for THEMES, TUNES, GAME
- * - Pre-loads ad after init
- * - Race condition safe: queues show request if ad not ready
+ * Start.io Rewarded Ads manager for KeyAura.
+ * Drop-in replacement for AdMobManager — same API, same RewardType enum.
  */
 class AdMobManager private constructor(private val appContext: Context) {
 
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("keyaura_admob_prefs", Context.MODE_PRIVATE)
 
-    private var rewardedAd: RewardedAd? = null
+    private var rewardedAd: StartAppAd? = null
     private var isLoading = false
-    private var pendingShow: (() -> Unit)? = null
 
     companion object {
-        private const val TAG = "AdMobManager"
-
-        // Test ad unit ID — replace with real one when going production
-        private const val AD_UNIT_ID = "ca-app-pub-6764009090264687/6880543585"
+        private const val TAG = "StartIOManager"
+        private const val APP_ID = "207210854"
 
         const val UNLOCK_DURATION_MS = 6L * 60 * 60 * 1000
 
@@ -74,7 +64,7 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     private fun grantUnlock(type: RewardType) {
         prefs.edit().putLong(unlockKey(type), System.currentTimeMillis()).apply()
-        Log.d(TAG, "✅ Unlock granted: $type for 12 hours")
+        Log.d(TAG, "Unlock granted: $type for 6 hours")
     }
 
     fun grantMultipleUnlocks(vararg types: RewardType) {
@@ -82,44 +72,37 @@ class AdMobManager private constructor(private val appContext: Context) {
         val now = System.currentTimeMillis()
         for (type in types) editor.putLong(unlockKey(type), now)
         editor.apply()
-        Log.d(TAG, "✅ Multi-unlock granted: ${types.toList()}")
+        Log.d(TAG, "Multi-unlock granted: ${types.toList()}")
     }
 
     // ── Initialization ────────────────────────────────────────────────────────
 
     fun initialize(context: Context) {
-        Log.d(TAG, "Initializing AdMob SDK")
-        MobileAds.initialize(context.applicationContext) {
-            Log.d(TAG, "✅ AdMob initialized")
-            loadAd()
-        }
+        Log.d(TAG, "Initializing Start.io SDK — appId=$APP_ID")
+        StartAppSDK.init(context, APP_ID, false)
+        StartAppSDK.setUserConsent(context, "pas", System.currentTimeMillis(), true)
+        loadAd()
     }
 
     // ── Load Ad ───────────────────────────────────────────────────────────────
 
     private fun loadAd() {
-        if (isLoading || rewardedAd != null) return
+        if (isLoading) return
         isLoading = true
-        Log.d(TAG, "Loading rewarded ad — unit=$AD_UNIT_ID")
-
-        val adRequest = AdRequest.Builder().build()
-        RewardedAd.load(appContext, AD_UNIT_ID, adRequest,
-            object : RewardedAdLoadCallback() {
-                override fun onAdLoaded(ad: RewardedAd) {
-                    Log.d(TAG, "✅ Rewarded ad LOADED")
-                    rewardedAd = ad
-                    isLoading = false
-                    pendingShow?.invoke()
-                    pendingShow = null
-                }
-
-                override fun onAdFailedToLoad(error: LoadAdError) {
-                    Log.e(TAG, "❌ Rewarded ad FAILED to load — ${error.message}")
-                    rewardedAd = null
-                    isLoading = false
-                    pendingShow = null
-                }
-            })
+        Log.d(TAG, "Loading Start.io rewarded ad")
+        val ad = StartAppAd(appContext)
+        ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
+            override fun onReceiveAd(a: com.startapp.sdk.adsbase.Ad) {
+                Log.d(TAG, "Rewarded ad loaded")
+                rewardedAd = ad
+                isLoading = false
+            }
+            override fun onFailedToReceiveAd(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.e(TAG, "Failed to load rewarded ad")
+                rewardedAd = null
+                isLoading = false
+            }
+        })
     }
 
     // ── Show Rewarded Ad ──────────────────────────────────────────────────────
@@ -130,46 +113,38 @@ class AdMobManager private constructor(private val appContext: Context) {
         onRewarded: () -> Unit,
         onFailed: () -> Unit = {}
     ) {
-        Log.d(TAG, "showRewardedAd called — type=$type adReady=${rewardedAd != null}")
-
         val ad = rewardedAd
         if (ad == null) {
-            Log.w(TAG, "Ad not ready — queuing request and loading")
-            pendingShow = { showRewardedAd(activity, type, onRewarded, onFailed) }
-            loadAd()
+            Log.w(TAG, "Ad not ready — loading")
             activity.runOnUiThread {
-                Toast.makeText(activity, "Ad is loading… please try again in a moment.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "Ad is loading… please try again.", Toast.LENGTH_SHORT).show()
             }
+            loadAd()
             onFailed()
             return
         }
 
-        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdDismissedFullScreenContent() {
-                Log.d(TAG, "Ad dismissed")
-                rewardedAd = null
-                loadAd() // pre-load next
-            }
-
-            override fun onAdFailedToShowFullScreenContent(error: AdError) {
-                Log.e(TAG, "❌ Ad SHOW FAILED — ${error.message}")
+        ad.showAd(object : AdDisplayListener {
+            override fun onSavedOffline() {}
+            override fun onFailedToDisplayAd() {
+                Log.e(TAG, "Ad failed to display")
                 rewardedAd = null
                 loadAd()
                 activity.runOnUiThread {
                     Toast.makeText(activity, "Ad failed. Try again later.", Toast.LENGTH_SHORT).show()
-                    onFailed()
                 }
+                onFailed()
             }
-
-            override fun onAdShowedFullScreenContent() {
-                Log.d(TAG, "✅ Ad showing")
+            override fun onHideAd() {
+                Log.d(TAG, "Ad hidden — reward granted")
+                grantUnlock(type)
+                rewardedAd = null
+                loadAd()
+                activity.runOnUiThread { onRewarded() }
             }
-        }
-
-        ad.show(activity) { _ ->
-            Log.d(TAG, "✅ Reward earned — type=$type")
-            grantUnlock(type)
-            activity.runOnUiThread { onRewarded() }
-        }
+            override fun onDisplayAd() {
+                Log.d(TAG, "Ad displaying")
+            }
+        })
     }
 }

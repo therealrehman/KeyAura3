@@ -38,6 +38,6 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
 
-    // AdMob
-    implementation 'com.google.android.gms:play-services-ads:23.0.0'
+    // Start.io
+    implementation 'com.startapp:inapp-sdk:4.10.4'
 }
