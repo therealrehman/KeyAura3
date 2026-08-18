@@ -159,3 +159,11 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getFloat("key_volume", 1.0f)
         set(value) = prefs.edit().putFloat("key_volume", value.coerceIn(0f, 1f)).apply()
 }
+    // Last animated theme user selected — used to re-apply after 3hr unlock expires
+    // and user watches another ad to unlock again.
+    var lastAnimatedThemeId: String?
+        get() = prefs.getString("last_animated_theme_id", null)
+        set(value) = prefs.edit().putString("last_animated_theme_id", value).apply()
+
+    // Fallback static theme shown when animated themes are locked.
+    val staticFallbackThemeId: String get() = "solid_slate"

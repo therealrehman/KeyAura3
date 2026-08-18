@@ -39,5 +39,5 @@ dependencies {
     implementation 'androidx.cardview:cardview:1.0.0'
 
     // Start.io
-    implementation 'com.startapp:inapp-sdk:4.10.4'
+    implementation 'com.startapp:inapp-sdk:5.3.2'
 }
