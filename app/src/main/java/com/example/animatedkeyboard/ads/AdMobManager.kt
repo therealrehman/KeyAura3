@@ -34,9 +34,9 @@ class AdMobManager private constructor(private val appContext: Context) {
         private const val TAG = "AdMobManager"
 
         // Test ad unit ID — replace with real one when going production
-        private const val AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+        private const val AD_UNIT_ID = "ca-app-pub-6764009090264687/6880543585"
 
-        const val UNLOCK_DURATION_MS = 12L * 60 * 60 * 1000
+        const val UNLOCK_DURATION_MS = 6L * 60 * 60 * 1000
 
         private const val KEY_THEMES_UNLOCK = "themes_unlock_time"
         private const val KEY_TUNES_UNLOCK  = "tunes_unlock_time"
