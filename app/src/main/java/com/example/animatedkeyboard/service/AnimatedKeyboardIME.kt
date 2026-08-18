@@ -1,5 +1,6 @@
 package com.example.animatedkeyboard.service
 
+import com.example.animatedkeyboard.ads.AdMobManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
