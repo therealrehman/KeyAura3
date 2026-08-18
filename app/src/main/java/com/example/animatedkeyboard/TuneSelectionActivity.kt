@@ -75,7 +75,7 @@ class TuneSelectionActivity : AppCompatActivity() {
             unlockStatusView.setTextColor(Color.parseColor("#00C853"))
             unlockStatusView.setOnClickListener(null)
         } else {
-            unlockStatusView.text = "🔒 Tap here to watch an ad and unlock all tunes for 12 hours"
+            unlockStatusView.text = "🔒 Tap here to watch an ad and unlock all tunes for 6 hours"
             unlockStatusView.setTextColor(Color.parseColor("#FFC400"))
             unlockStatusView.setOnClickListener { showAdDialog() }
         }
@@ -84,7 +84,7 @@ class TuneSelectionActivity : AppCompatActivity() {
     private fun showAdDialog() {
         AlertDialog.Builder(this)
             .setTitle("🎶 Unlock All Swipe Tunes")
-            .setMessage("Watch a short ad to unlock all 10 swipe tunes for 12 hours.")
+            .setMessage("Watch a short ad to unlock all 10 swipe tunes for 6 hours.")
             .setPositiveButton("▶ Watch Ad") { _, _ ->
                 ads.showRewardedAd(
                     activity   = this,

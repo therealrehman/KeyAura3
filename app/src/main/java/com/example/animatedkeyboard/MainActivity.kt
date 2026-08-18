@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("🎮 Unlock Birdy Bird Game")
-                    .setMessage("Watch a short ad to unlock the game for 12 hours.")
+                    .setMessage("Watch a short ad to unlock the game for 6 hours.")
                     .setPositiveButton("▶ Watch Ad") { _, _ ->
                         ads.showRewardedAd(
                             activity   = this,
@@ -162,7 +162,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Animated themes unlocked — ${ads.remainingHours(RewardType.THEMES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any animated theme to watch an ad and unlock for 12h"
+                text = "🔒 Tap any animated theme to watch an ad and unlock for 6h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ All swipe tunes unlocked — ${ads.remainingHours(RewardType.TUNES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Watch an ad to unlock all tunes for 12h"
+                text = "🔒 Watch an ad to unlock all tunes for 6h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Game unlocked — open keyboard to play!"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Watch an ad to unlock for 12h"
+                text = "🔒 Watch an ad to unlock for 6h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
         }
@@ -287,7 +287,7 @@ class MainActivity : AppCompatActivity() {
             ) {
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("✨ Unlock Animated Themes")
-                    .setMessage("Watch a short ad to unlock all animated themes for 12 hours.")
+                    .setMessage("Watch a short ad to unlock all animated themes for 6 hours.")
                     .setPositiveButton("▶ Watch Ad") { _, _ ->
                         ads.showRewardedAd(
                             activity   = this,

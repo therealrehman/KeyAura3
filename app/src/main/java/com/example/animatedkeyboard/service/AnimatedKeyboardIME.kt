@@ -317,7 +317,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (!adsManager.isUnlocked(AdMobManager.RewardType.GAME)) {
             android.widget.Toast.makeText(
                 this,
-                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 12h 🎮",
+                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 6h 🎮",
                 android.widget.Toast.LENGTH_LONG
             ).show()
             return

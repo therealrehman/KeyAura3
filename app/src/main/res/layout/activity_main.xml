@@ -261,7 +261,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="2dp"
-                    android:text="🔒 Watch an ad to unlock animated themes for 12h — tap any animated theme"
+                    android:text="🔒 Watch an ad to unlock animated themes for 6h — tap any animated theme"
                     android:textColor="#FFC400"
                     android:textSize="12sp"
                     android:visibility="gone" />
@@ -356,7 +356,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="🔒 Watch an ad to unlock all tunes for 12h"
+                    android:text="🔒 Watch an ad to unlock all tunes for 6h"
                     android:textColor="#FFC400"
                     android:textSize="12sp"
                     android:visibility="gone" />
@@ -406,7 +406,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="🔒 Watch an ad to unlock the game for 12h"
+                    android:text="🔒 Watch an ad to unlock the game for 6h"
                     android:textColor="#FFC400"
                     android:textSize="12sp" />
             </LinearLayout>
