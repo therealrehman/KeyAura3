@@ -10,7 +10,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.animatedkeyboard.ads.AdMobManager
 import com.example.animatedkeyboard.ads.AdMobManager.RewardType
@@ -41,7 +41,6 @@ class TuneSelectionActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.tuneListContainer)
 
-        // Status banner at top
         unlockStatusView = TextView(this).apply {
             textSize = 13f
             setPadding(dp(16), dp(12), dp(16), dp(8))
@@ -49,36 +48,55 @@ class TuneSelectionActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            isClickable = true
+            isFocusable = true
         }
         container.addView(unlockStatusView, 0)
+        updateUnlockBanner()
 
         for (i in KeySoundEngine.TUNE_NAMES.indices) {
             val row = buildTuneRow(i)
             rowViews.add(row)
             container.addView(row)
         }
-        refreshAll()
+        refreshRowStyles()
     }
 
     override fun onResume() {
         super.onResume()
-        refreshAll()
-    }
-
-    private fun refreshAll() {
-        updateBanner()
+        updateUnlockBanner()
         refreshRowStyles()
     }
 
-    private fun updateBanner() {
+    private fun updateUnlockBanner() {
         if (ads.isUnlocked(RewardType.TUNES)) {
-            val mins = ads.remainingMinutes(RewardType.TUNES)
-            unlockStatusView.text = "✅ All tunes unlocked — ${mins}min remaining"
+            val h = ads.remainingHours(RewardType.TUNES)
+            unlockStatusView.text = "✅ All tunes unlocked — ${h}h remaining"
             unlockStatusView.setTextColor(Color.parseColor("#00C853"))
+            unlockStatusView.setOnClickListener(null)
         } else {
-            unlockStatusView.text = "🔒 Tap any tune — watch a short ad to unlock for 3 hours"
+            unlockStatusView.text = "🔒 Tap here to watch an ad and unlock all tunes for 12 hours"
             unlockStatusView.setTextColor(Color.parseColor("#FFC400"))
+            unlockStatusView.setOnClickListener { showAdDialog() }
         }
+    }
+
+    private fun showAdDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("🎶 Unlock All Swipe Tunes")
+            .setMessage("Watch a short ad to unlock all 10 swipe tunes for 12 hours.")
+            .setPositiveButton("▶ Watch Ad") { _, _ ->
+                ads.showRewardedAd(
+                    activity   = this,
+                    type       = RewardType.TUNES,
+                    onRewarded = {
+                        updateUnlockBanner()
+                        refreshRowStyles()
+                    }
+                )
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     private fun buildTuneRow(index: Int): LinearLayout {
@@ -117,20 +135,11 @@ class TuneSelectionActivity : AppCompatActivity() {
 
         row.setOnClickListener {
             if (!ads.isUnlocked(RewardType.TUNES)) {
-                // LOCKED → ad → 3hr unlock → apply tune
-                ads.unlockWithInterstitial(this, RewardType.TUNES) {
-                    settings.selectedTuneIndex = index
-                    refreshAll()
-                    playPreview(index)
-                    Toast.makeText(this, "🎵 Tunes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
-                }
+                showAdDialog()
             } else {
-                // ALREADY UNLOCKED → ad → apply new tune
-                ads.showInterstitialThen(this) {
-                    settings.selectedTuneIndex = index
-                    refreshAll()
-                    playPreview(index)
-                }
+                settings.selectedTuneIndex = index
+                refreshRowStyles()
+                playPreview(index)
             }
         }
         return row

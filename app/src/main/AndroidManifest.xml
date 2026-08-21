@@ -6,8 +6,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Start.io: Required for Android 12+ Advertising ID access -->
-    <uses-permission android:name="android.permission.AD_ID"/>
 
     <application
         android:allowBackup="true"
@@ -15,15 +13,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.KeyAura"
         android:icon="@mipmap/ic_launcher">
-
-        <!-- Start.io App ID -->
-        <meta-data
-            android:name="com.startapp.sdk.APPLICATION_ID"
-            android:value="207210854" />
-        <!-- Disable Return Ads (optional) -->
-        <meta-data
-            android:name="com.startapp.sdk.RETURN_ADS_ENABLED"
-            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

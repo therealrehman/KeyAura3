@@ -59,11 +59,6 @@ class MainActivity : AppCompatActivity() {
         // Initialize AdMob
         ads.initialize(this)
 
-        // Keyboard chip tapped before app was open → auto unlock
-        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
-            autoUnlockThemes()
-        }
-
         applyLogoGradient(findViewById(R.id.logoText))
 
         findViewById<LinearLayout>(R.id.btnEnable).setOnClickListener {
@@ -112,15 +107,26 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
-        // Game — locked: unlock with interstitial; unlocked: show status
+        // Game — show ad if locked, else show message
         findViewById<CardView>(R.id.gameUnlockCard).setOnClickListener {
             if (ads.isUnlocked(RewardType.GAME)) {
-                Toast.makeText(this, "🎮 Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
             } else {
-                ads.unlockWithInterstitial(this, RewardType.GAME) {
-                    updateAdStatusViews()
-                    Toast.makeText(this, "🎮 Game unlocked for 3 hours! Open your keyboard.", Toast.LENGTH_LONG).show()
-                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("🎮 Unlock Birdy Bird Game")
+                    .setMessage("Watch a short ad to unlock the game for 12 hours.")
+                    .setPositiveButton("▶ Watch Ad") { _, _ ->
+                        ads.showRewardedAd(
+                            activity   = this,
+                            type       = RewardType.GAME,
+                            onRewarded = {
+                                updateAdStatusViews()
+                                Toast.makeText(this, "🎮 Game unlocked! Open your keyboard.", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+                    .setNegativeButton("Not now", null)
+                    .show()
             }
         }
 
@@ -136,58 +142,27 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        checkThemeExpiry()   // if 3hrs passed, fall back to static theme
         updateButtonStates()
         updateToggleStates()
         buildThemeRows()
         updateAdStatusViews()
     }
 
-    // If animated theme is selected but unlock expired → switch to static fallback
-    private fun checkThemeExpiry() {
-        if (!ads.isUnlocked(RewardType.THEMES)) {
-            val current = settings.selectedThemeId
-            val isAnimated = current != settings.staticFallbackThemeId &&
-                             current != "custom_color" && current != "custom_image" &&
-                             !current.startsWith("solid_")
-            if (isAnimated) {
-                settings.lastAnimatedThemeId = current      // remember for re-apply
-                settings.selectedThemeId = settings.staticFallbackThemeId
-            }
-        }
-    }
-
-    // Called when user taps keyboard chip or unlock button — show ad → restore animated theme
-    private fun autoUnlockThemes() {
-        val lastTheme = settings.lastAnimatedThemeId ?: return
-        ads.unlockWithInterstitial(this, RewardType.THEMES) {
-            settings.selectedThemeId = lastTheme
-            buildThemeRows()
-            updateAdStatusViews()
-            Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // Keyboard chip tapped → auto-show unlock interstitial for themes
-        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
-            autoUnlockThemes()
-        }
     }
 
-    // ── Ad status views ───────────────────────────────────────────────────────
+    // ── Ad status views — show everything as unlocked ─────────────────────────
 
     private fun updateAdStatusViews() {
         // Themes status
         findViewById<TextView>(R.id.themesAdStatus)?.apply {
             if (ads.isUnlocked(RewardType.THEMES)) {
-                val mins = ads.remainingMinutes(RewardType.THEMES)
-                text = "✅ Animated themes unlocked — ${mins}min remaining"
+                text = "✅ Animated themes unlocked — ${ads.remainingHours(RewardType.THEMES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any animated theme to unlock for 3h"
+                text = "🔒 Tap any animated theme to watch an ad and unlock for 12h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -195,28 +170,28 @@ class MainActivity : AppCompatActivity() {
         // Tunes status
         findViewById<TextView>(R.id.tuneAdStatus)?.apply {
             if (ads.isUnlocked(RewardType.TUNES)) {
-                val mins = ads.remainingMinutes(RewardType.TUNES)
-                text = "✅ Swipe tunes unlocked — ${mins}min remaining"
+                text = "✅ All swipe tunes unlocked — ${ads.remainingHours(RewardType.TUNES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any tune to unlock for 3h"
+                text = "🔒 Watch an ad to unlock all tunes for 12h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
         }
         // Game status
-        val gameUnlocked = ads.isUnlocked(RewardType.GAME)
+        val gameLocked = !ads.isUnlocked(RewardType.GAME)
         findViewById<TextView>(R.id.gameAdStatus)?.apply {
-            text = if (gameUnlocked) {
-                "✅ Game unlocked — open keyboard to play!"
+            if (!gameLocked) {
+                text = "✅ Game unlocked — open keyboard to play!"
+                setTextColor(Color.parseColor("#00C853"))
             } else {
-                "🔒 Tap to watch an ad and unlock for 3h"
+                text = "🔒 Watch an ad to unlock for 12h"
+                setTextColor(Color.parseColor("#FFC400"))
             }
-            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
         }
         findViewById<TextView>(R.id.gameUnlockArrow)?.apply {
-            text = if (gameUnlocked) "✓" else "▶"
-            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
+            text = if (!gameLocked) "✓" else "▶"
+            setTextColor(if (!gameLocked) Color.parseColor("#00C853") else Color.parseColor("#FFC400"))
         }
     }
 
@@ -306,26 +281,27 @@ class MainActivity : AppCompatActivity() {
         card.setOnClickListener {
             if (theme.type == ThemeType.CUSTOM_IMAGE) {
                 pickImage.launch("image/*")
-            } else if (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) {
-                if (!ads.isUnlocked(RewardType.THEMES)) {
-                    // LOCKED → ad → 3hr unlock → apply theme
-                    ads.unlockWithInterstitial(this, RewardType.THEMES) {
-                        settings.lastAnimatedThemeId = theme.id
-                        settings.selectedThemeId = theme.id
-                        buildThemeRows()
-                        updateAdStatusViews()
-                        Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
+            } else if (
+                (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) &&
+                !ads.isUnlocked(RewardType.THEMES)
+            ) {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("✨ Unlock Animated Themes")
+                    .setMessage("Watch a short ad to unlock all animated themes for 12 hours.")
+                    .setPositiveButton("▶ Watch Ad") { _, _ ->
+                        ads.showRewardedAd(
+                            activity   = this,
+                            type       = RewardType.THEMES,
+                            onRewarded = {
+                                settings.selectedThemeId = theme.id
+                                buildThemeRows()
+                                updateAdStatusViews()
+                            }
+                        )
                     }
-                } else {
-                    // ALREADY UNLOCKED → ad → apply new theme
-                    ads.showInterstitialThen(this) {
-                        settings.lastAnimatedThemeId = theme.id
-                        settings.selectedThemeId = theme.id
-                        buildThemeRows()
-                    }
-                }
+                    .setNegativeButton("Not now", null)
+                    .show()
             } else {
-                // Solid themes — no ad, apply directly
                 settings.selectedThemeId = theme.id
                 buildThemeRows()
             }

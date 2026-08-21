@@ -233,7 +233,7 @@ Required for displaying ads via Unity Ads and for general app functionality. Key
         sectionCard("🔗 Third-Party Services", """
 Unity Ads (ironSource/Unity Technologies): KeyAura displays ads powered by Unity Ads to support free access to the app. Unity Ads may collect device identifiers, IP address, and ad interaction data to serve relevant ads. See Unity's Privacy Policy at: unity.com/legal/privacy-policy
 
-Banner ads are shown in the app UI. Rewarded video ads let you unlock animated themes, swipe tunes, and the mini-game for 6 hours each — completely optional.
+Banner ads are shown in the app UI. Rewarded video ads let you unlock animated themes, swipe tunes, and the mini-game for 12 hours each — completely optional.
 
 Google Play Services: The app is distributed via Google Play, which may collect install/crash metadata per Google's own Privacy Policy.
 

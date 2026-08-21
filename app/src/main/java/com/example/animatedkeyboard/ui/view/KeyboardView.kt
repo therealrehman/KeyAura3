@@ -568,11 +568,12 @@ class KeyboardView @JvmOverloads constructor(
         }
 
         val suggestions = currentSuggestions
-        // If themes/tunes are not yet unlocked AND no word suggestions are showing,
-        // fill the chip area with a persistent "Watch Ad to Unlock" CTA.
-        // The chip only disappears when the user taps it, watches the rewarded ad,
-        // and the 12-hour unlock is granted — it never auto-dismisses.
-
+        // If themes are locked AND no word suggestions, show Watch Ad chip
+        if (!adsManager.isUnlocked(AdMobManager.RewardType.THEMES) && suggestions.isEmpty()) {
+            keyMap["watchAdChip"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
+            keyStates.putIfAbsent("watchAdChip", KeyState.NORMAL)
+            return
+        }
 
         if (suggestions.isEmpty()) return
         val chipWidth = (chipsAvailableWidth - hGap * (suggestions.size - 1)) / suggestions.size
@@ -583,6 +584,38 @@ class KeyboardView @JvmOverloads constructor(
             keyStates.putIfAbsent(label, KeyState.NORMAL)
             x += chipWidth + hGap
         }
+    }
+
+    private fun drawWatchAdChip(canvas: Canvas, rect: Rect) {
+        val l = rect.left.toFloat(); val t = rect.top.toFloat()
+        val r = rect.right.toFloat(); val b = rect.bottom.toFloat()
+        val margin = dp(2f); val corner = dp(8f)
+
+        val bgPaint = Paint().apply {
+            color = Color.parseColor("#1A1500")
+            isAntiAlias = true
+            style = Paint.Style.FILL
+        }
+        val borderPaint = Paint().apply {
+            color = Color.parseColor("#FFC400")
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = dp(1f)
+            setShadowLayer(dp(6f), 0f, 0f, Color.parseColor("#FFC400"))
+        }
+        val chipRectF = android.graphics.RectF(l + margin, t + margin, r - margin, b - margin)
+        canvas.drawRoundRect(chipRectF, corner, corner, bgPaint)
+        canvas.drawRoundRect(chipRectF, corner, corner, borderPaint)
+
+        val textP = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#FFC400")
+            textAlign = Paint.Align.CENTER
+            textSize = dp(9.5f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setShadowLayer(dp(4f), 0f, 0f, Color.parseColor("#996600"))
+        }
+        canvas.drawText("▶ Watch Ad · Unlock Themes", rect.exactCenterX(), rect.exactCenterY() + textP.textSize * 0.35f, textP)
     }
 
     private fun getWeight(label: String): Float {
@@ -780,6 +813,7 @@ class KeyboardView @JvmOverloads constructor(
                 val p = Paint(textPaint).apply { textSize = dp(11f) }
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
+            "watchAdChip" -> drawWatchAdChip(canvas, rect)
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)
