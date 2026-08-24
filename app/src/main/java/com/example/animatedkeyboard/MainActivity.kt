@@ -59,6 +59,11 @@ class MainActivity : AppCompatActivity() {
         // Initialize AdMob
         ads.initialize(this)
 
+        // Auto-show theme ad if launched from keyboard chip
+        if (intent?.getBooleanExtra("auto_show_theme_ad", false) == true) {
+            showThemeAdDialog()
+        }
+
         applyLogoGradient(findViewById(R.id.logoText))
 
         findViewById<LinearLayout>(R.id.btnEnable).setOnClickListener {
@@ -151,6 +156,30 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            showThemeAdDialog()
+        }
+    }
+
+    // ── Theme Ad Dialog from keyboard chip ───────────────────────────────────────
+
+    private fun showThemeAdDialog() {
+        if (ads.isUnlocked(RewardType.THEMES)) return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("✨ Unlock Animated Themes")
+            .setMessage("Watch a short ad to unlock all animated themes for 3 hours.")
+            .setPositiveButton("▶ Watch Ad") { _, _ ->
+                ads.showRewardedAd(
+                    activity   = this,
+                    type       = RewardType.THEMES,
+                    onRewarded = {
+                        buildThemeRows()
+                        updateAdStatusViews()
+                    }
+                )
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     // ── Ad status views — show everything as unlocked ─────────────────────────

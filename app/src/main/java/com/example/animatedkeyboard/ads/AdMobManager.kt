@@ -26,7 +26,7 @@ class AdMobManager private constructor(private val appContext: Context) {
         private const val TAG = "StartIOManager"
         private const val APP_ID = "207210854"
 
-        const val UNLOCK_DURATION_MS = 6L * 60 * 60 * 1000
+        const val UNLOCK_DURATION_MS = 3L * 60 * 60 * 1000
 
         private const val KEY_THEMES_UNLOCK = "themes_unlock_time"
         private const val KEY_TUNES_UNLOCK  = "tunes_unlock_time"
