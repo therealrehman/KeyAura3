@@ -14,7 +14,29 @@
     android:visibility="gone"
     android:background="#0A0C1A" />
 
-<ScrollView
+<!-- First install Watch Ad banner -->
+    <LinearLayout
+        android:id="@+id/watchAdBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1A1500"
+        android:padding="14dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶ Watch Ad · Unlock Animated Themes for 3 hours"
+            android:textColor="#FFC400"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <ScrollView
     android:layout_width="match_parent"
     android:layout_height="0dp"
     android:layout_weight="1"

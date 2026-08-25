@@ -154,6 +154,16 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getString("keyboard_image_path", null)
         set(value) = prefs.edit().putString("keyboard_image_path", value).apply()
 
+    // Last animated theme the user had selected — restored after ad unlock
+    var lastAnimatedThemeId: String
+        get() = prefs.getString("last_animated_theme_id", "rainbow") ?: "rainbow"
+        set(value) = prefs.edit().putString("last_animated_theme_id", value).apply()
+
+    // Whether to show Watch Ad banner on first install
+    var watchAdBannerDismissed: Boolean
+        get() = prefs.getBoolean("watch_ad_banner_dismissed", false)
+        set(value) = prefs.edit().putBoolean("watch_ad_banner_dismissed", value).apply()
+
     // Key click / tune playback volume, 0f (silent) .. 1f (full).
     var keyVolume: Float
         get() = prefs.getFloat("key_volume", 1.0f)

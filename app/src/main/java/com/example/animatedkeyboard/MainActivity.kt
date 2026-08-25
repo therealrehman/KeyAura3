@@ -143,6 +143,19 @@ class MainActivity : AppCompatActivity() {
 
         buildThemeRows()
         updateAdStatusViews()
+        showFirstInstallBanner()
+    }
+
+    private fun showFirstInstallBanner() {
+        if (settings.watchAdBannerDismissed) return
+        if (ads.isUnlocked(RewardType.THEMES)) return
+        val banner = findViewById<android.widget.LinearLayout>(R.id.watchAdBanner) ?: return
+        banner.visibility = android.view.View.VISIBLE
+        banner.setOnClickListener {
+            banner.visibility = android.view.View.GONE
+            settings.watchAdBannerDismissed = true
+            showThemeAdDialog()
+        }
     }
 
     override fun onResume() {
@@ -173,8 +186,13 @@ class MainActivity : AppCompatActivity() {
                     activity   = this,
                     type       = RewardType.THEMES,
                     onRewarded = {
+                        // Restore last animated theme user had selected
+                        settings.selectedThemeId = settings.lastAnimatedThemeId
                         buildThemeRows()
                         updateAdStatusViews()
+                        android.widget.Toast.makeText(
+                            this, "✨ Themes unlocked for 3 hours!", android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     }
                 )
             }
@@ -314,6 +332,8 @@ class MainActivity : AppCompatActivity() {
                 (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) &&
                 !ads.isUnlocked(RewardType.THEMES)
             ) {
+                // Save which animated theme user tried to select
+                settings.lastAnimatedThemeId = theme.id
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("✨ Unlock Animated Themes")
                     .setMessage("Watch a short ad to unlock all animated themes for 12 hours.")
@@ -332,6 +352,10 @@ class MainActivity : AppCompatActivity() {
                     .show()
             } else {
                 settings.selectedThemeId = theme.id
+                // Save as last animated theme if animated
+                if (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) {
+                    settings.lastAnimatedThemeId = theme.id
+                }
                 buildThemeRows()
             }
         }
