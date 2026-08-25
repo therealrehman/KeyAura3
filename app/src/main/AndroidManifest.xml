@@ -62,5 +62,9 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-    </application>
+    
+        <meta-data android:name="com.startapp.sdk.APPLICATION_ID" android:value="207210854" />
+        <meta-data android:name="com.startapp.sdk.SPLASH_ENABLED" android:value="false" />
+        <meta-data android:name="com.startapp.sdk.RETURN_ADS_ENABLED" android:value="false" />
+</application>
 </manifest>

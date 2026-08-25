@@ -72,6 +72,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.btnChoose).setOnClickListener {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
+        findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
+            // Settings — open keyboard settings / input method settings
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS))
+        }
+
         findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { v ->
             val popup = android.widget.PopupMenu(this, v)
             popup.menu.add(0, 1, 0, "About KeyAura")
@@ -143,19 +148,6 @@ class MainActivity : AppCompatActivity() {
 
         buildThemeRows()
         updateAdStatusViews()
-        showFirstInstallBanner()
-    }
-
-    private fun showFirstInstallBanner() {
-        if (settings.watchAdBannerDismissed) return
-        if (ads.isUnlocked(RewardType.THEMES)) return
-        val banner = findViewById<android.widget.LinearLayout>(R.id.watchAdBanner) ?: return
-        banner.visibility = android.view.View.VISIBLE
-        banner.setOnClickListener {
-            banner.visibility = android.view.View.GONE
-            settings.watchAdBannerDismissed = true
-            showThemeAdDialog()
-        }
     }
 
     override fun onResume() {
@@ -178,26 +170,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun showThemeAdDialog() {
         if (ads.isUnlocked(RewardType.THEMES)) return
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("✨ Unlock Animated Themes")
-            .setMessage("Watch a short ad to unlock all animated themes for 3 hours.")
-            .setPositiveButton("▶ Watch Ad") { _, _ ->
-                ads.showRewardedAd(
-                    activity   = this,
-                    type       = RewardType.THEMES,
-                    onRewarded = {
-                        // Restore last animated theme user had selected
-                        settings.selectedThemeId = settings.lastAnimatedThemeId
-                        buildThemeRows()
-                        updateAdStatusViews()
-                        android.widget.Toast.makeText(
-                            this, "✨ Themes unlocked for 3 hours!", android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
+        // Seedha ad play karo — no dialog
+        ads.showRewardedAd(
+            activity   = this,
+            type       = RewardType.THEMES,
+            onRewarded = {
+                // Last animated theme apply karo
+                val lastTheme = ads.getLastAnimatedTheme()
+                if (lastTheme != null) {
+                    settings.selectedThemeId = lastTheme
+                }
+                buildThemeRows()
+                updateAdStatusViews()
+                Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Not now", null)
-            .show()
+        )
     }
 
     // ── Ad status views — show everything as unlocked ─────────────────────────
@@ -209,7 +196,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Animated themes unlocked — ${ads.remainingHours(RewardType.THEMES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any animated theme to watch an ad and unlock for 12h"
+                text = "🔒 Tap any animated theme to watch an ad and unlock for 3h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -220,7 +207,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ All swipe tunes unlocked — ${ads.remainingHours(RewardType.TUNES)}h remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Watch an ad to unlock all tunes for 12h"
+                text = "🔒 Watch an ad to unlock all tunes for 3h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -232,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Game unlocked — open keyboard to play!"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Watch an ad to unlock for 12h"
+                text = "🔒 Watch an ad to unlock for 3h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
         }
@@ -332,30 +319,20 @@ class MainActivity : AppCompatActivity() {
                 (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) &&
                 !ads.isUnlocked(RewardType.THEMES)
             ) {
-                // Save which animated theme user tried to select
-                settings.lastAnimatedThemeId = theme.id
-                androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("✨ Unlock Animated Themes")
-                    .setMessage("Watch a short ad to unlock all animated themes for 12 hours.")
-                    .setPositiveButton("▶ Watch Ad") { _, _ ->
-                        ads.showRewardedAd(
-                            activity   = this,
-                            type       = RewardType.THEMES,
-                            onRewarded = {
-                                settings.selectedThemeId = theme.id
-                                buildThemeRows()
-                                updateAdStatusViews()
-                            }
-                        )
+                // Save last tapped animated theme, then play ad directly
+                ads.saveLastAnimatedTheme(theme.id)
+                ads.showRewardedAd(
+                    activity   = this,
+                    type       = RewardType.THEMES,
+                    onRewarded = {
+                        settings.selectedThemeId = theme.id
+                        buildThemeRows()
+                        updateAdStatusViews()
+                        Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
                     }
-                    .setNegativeButton("Not now", null)
-                    .show()
+                )
             } else {
                 settings.selectedThemeId = theme.id
-                // Save as last animated theme if animated
-                if (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) {
-                    settings.lastAnimatedThemeId = theme.id
-                }
                 buildThemeRows()
             }
         }
