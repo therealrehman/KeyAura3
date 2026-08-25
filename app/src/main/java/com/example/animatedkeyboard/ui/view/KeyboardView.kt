@@ -1480,6 +1480,9 @@ class KeyboardView @JvmOverloads constructor(
                 finalizeRomanBuffer()
                 keyListener?.onKey(-11, "Mic")
             }
+            "watchAdChip" -> {
+                keyListener?.onKey(-16, "watchAdChip")
+            }
             "KbSettings" -> {
                 keyListener?.onKey(-15, "KbSettings")
             }

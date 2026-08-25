@@ -59,6 +59,12 @@ class MainActivity : AppCompatActivity() {
         // Initialize AdMob
         ads.initialize(this)
 
+        // First install — show setup guide
+        val prefs = getSharedPreferences("keyaura_setup", MODE_PRIVATE)
+        if (!prefs.getBoolean("setup_done", false)) {
+            showSetupGuide()
+        }
+
         // Auto-show theme ad if launched from keyboard chip
         if (intent?.getBooleanExtra("auto_show_theme_ad", false) == true) {
             showThemeAdDialog()
@@ -72,11 +78,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.btnChoose).setOnClickListener {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
-        findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
-            // Settings — open keyboard settings / input method settings
-            startActivity(android.content.Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS))
-        }
-
         findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { v ->
             val popup = android.widget.PopupMenu(this, v)
             popup.menu.add(0, 1, 0, "About KeyAura")
@@ -337,6 +338,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return card
+    }
+
+    // ── Setup Guide ───────────────────────────────────────────────────────────
+
+    private fun showSetupGuide() {
+        val steps = listOf(
+            "👋 Welcome to KeyAura!" to "Let's set up your keyboard in 3 quick steps.",
+            "⌨️ Step 1: Enable Keyboard" to "Go to Settings → Language & Input → Enable KeyAura Keyboard.",
+            "✅ Step 2: Select KeyAura" to "Tap 'Choose KeyAura Keyboard' and select it as your active keyboard.",
+            "✨ Step 3: Pick a Theme" to "Scroll down and tap any animated theme. Watch a short ad to unlock it for 3 hours. Enjoy!"
+        )
+        var currentStep = 0
+
+        fun showStep() {
+            if (currentStep >= steps.size) {
+                getSharedPreferences("keyaura_setup", MODE_PRIVATE).edit().putBoolean("setup_done", true).apply()
+                return
+            }
+            val (title, msg) = steps[currentStep]
+            val isLast = currentStep == steps.size - 1
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(msg)
+                .setCancelable(false)
+                .setPositiveButton(if (isLast) "Let's Go! 🚀" else "Next →") { _, _ ->
+                    currentStep++
+                    if (!isLast) showStep()
+                    else getSharedPreferences("keyaura_setup", MODE_PRIVATE).edit().putBoolean("setup_done", true).apply()
+                }
+                .apply { if (currentStep > 0) setNegativeButton("← Back") { _, _ -> currentStep -= 2; showStep() } }
+                .show()
+        }
+        showStep()
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

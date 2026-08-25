@@ -74,7 +74,7 @@ class AdMobManager private constructor(private val appContext: Context) {
     }
 
     fun initialize(context: Context) {
-        StartAppSDK.init(context, APP_ID, false)
+        StartAppSDK.init(context, APP_ID, true)
         StartAppSDK.setUserConsent(context, "pas", System.currentTimeMillis(), true)
         loadAd()
     }
