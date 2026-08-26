@@ -6,16 +6,26 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Start.io: Required for Android 12+ Advertising ID access -->
+    <uses-permission android:name="android.permission.AD_ID"/>
 
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.KeyAura"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round">
+        android:icon="@mipmap/ic_launcher">
+
+        <!-- Start.io App ID -->
+        <meta-data
+            android:name="com.startapp.sdk.APPLICATION_ID"
+            android:value="207210854" />
+        <!-- Disable Return Ads (optional) -->
+        <meta-data
+            android:name="com.startapp.sdk.RETURN_ADS_ENABLED"
+            android:value="false" />
         <activity
-            android:name=".OnboardingActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.KeyAura">
             <intent-filter>
@@ -23,11 +33,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.KeyAura" />
 
         <activity
             android:name=".AboutActivity"

@@ -154,18 +154,16 @@ class KeyboardSettings private constructor(context: Context) {
         get() = prefs.getString("keyboard_image_path", null)
         set(value) = prefs.edit().putString("keyboard_image_path", value).apply()
 
-    // Last animated theme the user had selected — restored after ad unlock
-    var lastAnimatedThemeId: String
-        get() = prefs.getString("last_animated_theme_id", "rainbow") ?: "rainbow"
-        set(value) = prefs.edit().putString("last_animated_theme_id", value).apply()
-
-    // Whether to show Watch Ad banner on first install
-    var watchAdBannerDismissed: Boolean
-        get() = prefs.getBoolean("watch_ad_banner_dismissed", false)
-        set(value) = prefs.edit().putBoolean("watch_ad_banner_dismissed", value).apply()
-
     // Key click / tune playback volume, 0f (silent) .. 1f (full).
     var keyVolume: Float
         get() = prefs.getFloat("key_volume", 1.0f)
         set(value) = prefs.edit().putFloat("key_volume", value.coerceIn(0f, 1f)).apply()
 }
+    // Last animated theme user selected — used to re-apply after 3hr unlock expires
+    // and user watches another ad to unlock again.
+    var lastAnimatedThemeId: String?
+        get() = prefs.getString("last_animated_theme_id", null)
+        set(value) = prefs.edit().putString("last_animated_theme_id", value).apply()
+
+    // Fallback static theme shown when animated themes are locked.
+    val staticFallbackThemeId: String get() = "solid_slate"

@@ -93,6 +93,8 @@ class AnimatedKeyboardIME : InputMethodService() {
                     }
                     -16 -> {
                         // "Watch Ad · Unlock Themes" chip tapped from inside the keyboard.
+                        // We can't show a rewarded ad from the IME service (needs Activity context),
+                        // so we open MainActivity which auto-shows the rewarded ad dialog.
                         val intent = Intent().apply {
                             setClassName(packageName, "com.example.animatedkeyboard.MainActivity")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -315,7 +317,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (!adsManager.isUnlocked(AdMobManager.RewardType.GAME)) {
             android.widget.Toast.makeText(
                 this,
-                "🔒 Game locked — open KeyAura app and watch an ad to unlock for 3h 🎮",
+                "🔒 Game locked — open KeyAura app to unlock for 3h 🎮",
                 android.widget.Toast.LENGTH_LONG
             ).show()
             return

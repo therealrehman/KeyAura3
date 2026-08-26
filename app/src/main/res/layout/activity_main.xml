@@ -14,29 +14,7 @@
     android:visibility="gone"
     android:background="#0A0C1A" />
 
-<!-- First install Watch Ad banner -->
-    <LinearLayout
-        android:id="@+id/watchAdBanner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#1A1500"
-        android:padding="14dp"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="▶ Watch Ad · Unlock Animated Themes for 3 hours"
-            android:textColor="#FFC400"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:gravity="center" />
-
-    </LinearLayout>
-
-    <ScrollView
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="0dp"
     android:layout_weight="1"
@@ -69,10 +47,6 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/bg_menu_button"
-                android:src="@android:drawable/ic_menu_more"
-                android:tint="#FFFFFF"
-                android:scaleType="centerInside"
-                android:padding="8dp"
                 android:contentDescription="Menu" />
         </LinearLayout>
 
@@ -287,7 +261,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="2dp"
-                    android:text="🔒 Watch an ad to unlock animated themes for 3h — tap any animated theme"
+                    android:text="🔒 Watch an ad to unlock animated themes for 6h — tap any animated theme"
                     android:textColor="#FFC400"
                     android:textSize="12sp"
                     android:visibility="gone" />
@@ -382,7 +356,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="🔒 Watch an ad to unlock all tunes for 3h"
+                    android:text="🔒 Watch an ad to unlock all tunes for 6h"
                     android:textColor="#FFC400"
                     android:textSize="12sp"
                     android:visibility="gone" />
@@ -432,7 +406,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="🔒 Watch an ad to unlock the game for 3h"
+                    android:text="🔒 Watch an ad to unlock the game for 6h"
                     android:textColor="#FFC400"
                     android:textSize="12sp" />
             </LinearLayout>
