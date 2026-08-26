@@ -568,13 +568,15 @@ class KeyboardView @JvmOverloads constructor(
         }
 
         val suggestions = currentSuggestions
-        // If themes/tunes are not yet unlocked AND no word suggestions are showing,
-        // fill the chip area with a persistent "Watch Ad to Unlock" CTA.
-        // The chip only disappears when the user taps it, watches the rewarded ad,
-        // and the 12-hour unlock is granted — it never auto-dismisses.
 
-
-        if (suggestions.isEmpty()) return
+        // Show Watch Ad chip in suggestions area when themes are locked & no suggestions
+        if (suggestions.isEmpty()) {
+            if (!adsManager.isUnlocked(AdMobManager.RewardType.THEMES)) {
+                keyMap["watchAdChip"] = Rect(chipsLeft, stripTop, chipsLeft + chipsAvailableWidth, stripBottom)
+                keyStates.putIfAbsent("watchAdChip", KeyState.NORMAL)
+            }
+            return
+        }
         val chipWidth = (chipsAvailableWidth - hGap * (suggestions.size - 1)) / suggestions.size
         var x = chipsLeft
         for (i in suggestions.indices) {
