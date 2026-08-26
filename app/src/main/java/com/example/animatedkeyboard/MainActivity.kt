@@ -59,15 +59,15 @@ class MainActivity : AppCompatActivity() {
         // Initialize AdMob
         ads.initialize(this)
 
-        // First install — show setup guide
-        val prefs = getSharedPreferences("keyaura_setup", MODE_PRIVATE)
-        if (!prefs.getBoolean("setup_done", false)) {
+        // First install setup guide
+        val setupPrefs = getSharedPreferences("keyaura_setup", MODE_PRIVATE)
+        if (!setupPrefs.getBoolean("setup_done", false)) {
             showSetupGuide()
         }
 
-        // Auto-show theme ad if launched from keyboard chip
-        if (intent?.getBooleanExtra("auto_show_theme_ad", false) == true) {
-            showThemeAdDialog()
+        // Keyboard chip tapped before app was open → auto unlock
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            autoUnlockThemes()
         }
 
         applyLogoGradient(findViewById(R.id.logoText))
@@ -118,26 +118,15 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, TuneSelectionActivity::class.java))
         }
 
-        // Game — show ad if locked, else show message
+        // Game — locked: unlock with interstitial; unlocked: show status
         findViewById<CardView>(R.id.gameUnlockCard).setOnClickListener {
             if (ads.isUnlocked(RewardType.GAME)) {
-                Toast.makeText(this, "Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "🎮 Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
             } else {
-                androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("🎮 Unlock Birdy Bird Game")
-                    .setMessage("Watch a short ad to unlock the game for 12 hours.")
-                    .setPositiveButton("▶ Watch Ad") { _, _ ->
-                        ads.showRewardedAd(
-                            activity   = this,
-                            type       = RewardType.GAME,
-                            onRewarded = {
-                                updateAdStatusViews()
-                                Toast.makeText(this, "🎮 Game unlocked! Open your keyboard.", Toast.LENGTH_LONG).show()
-                            }
-                        )
-                    }
-                    .setNegativeButton("Not now", null)
-                    .show()
+                ads.unlockWithInterstitial(this, RewardType.GAME) {
+                    updateAdStatusViews()
+                    Toast.makeText(this, "🎮 Game unlocked for 3 hours! Open your keyboard.", Toast.LENGTH_LONG).show()
+                }
             }
         }
 
@@ -153,51 +142,58 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        checkThemeExpiry()   // if 3hrs passed, fall back to static theme
         updateButtonStates()
         updateToggleStates()
         buildThemeRows()
         updateAdStatusViews()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
-            showThemeAdDialog()
+    // If animated theme is selected but unlock expired → switch to static fallback
+    private fun checkThemeExpiry() {
+        if (!ads.isUnlocked(RewardType.THEMES)) {
+            val current = settings.selectedThemeId
+            val isAnimated = current != settings.staticFallbackThemeId &&
+                             current != "custom_color" && current != "custom_image" &&
+                             !current.startsWith("solid_")
+            if (isAnimated) {
+                settings.lastAnimatedThemeId = current      // remember for re-apply
+                settings.selectedThemeId = settings.staticFallbackThemeId
+            }
         }
     }
 
-    // ── Theme Ad Dialog from keyboard chip ───────────────────────────────────────
-
-    private fun showThemeAdDialog() {
-        if (ads.isUnlocked(RewardType.THEMES)) return
-        // Seedha ad play karo — no dialog
-        ads.showRewardedAd(
-            activity   = this,
-            type       = RewardType.THEMES,
-            onRewarded = {
-                // Last animated theme apply karo
-                val lastTheme = ads.getLastAnimatedTheme()
-                if (lastTheme != null) {
-                    settings.selectedThemeId = lastTheme
-                }
-                buildThemeRows()
-                updateAdStatusViews()
-                Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
-            }
-        )
+    // Called when user taps keyboard chip or unlock button — show ad → restore animated theme
+    private fun autoUnlockThemes() {
+        val lastTheme = settings.lastAnimatedThemeId ?: return
+        ads.unlockWithInterstitial(this, RewardType.THEMES) {
+            settings.selectedThemeId = lastTheme
+            buildThemeRows()
+            updateAdStatusViews()
+            Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    // ── Ad status views — show everything as unlocked ─────────────────────────
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Keyboard chip tapped → auto-show unlock interstitial for themes
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            autoUnlockThemes()
+        }
+    }
+
+    // ── Ad status views ───────────────────────────────────────────────────────
 
     private fun updateAdStatusViews() {
         // Themes status
         findViewById<TextView>(R.id.themesAdStatus)?.apply {
             if (ads.isUnlocked(RewardType.THEMES)) {
-                text = "✅ Animated themes unlocked — ${ads.remainingHours(RewardType.THEMES)}h remaining"
+                val mins = ads.remainingMinutes(RewardType.THEMES)
+                text = "✅ Animated themes unlocked — ${mins}min remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any animated theme to watch an ad and unlock for 3h"
+                text = "🔒 Tap any animated theme to unlock for 3h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -205,28 +201,28 @@ class MainActivity : AppCompatActivity() {
         // Tunes status
         findViewById<TextView>(R.id.tuneAdStatus)?.apply {
             if (ads.isUnlocked(RewardType.TUNES)) {
-                text = "✅ All swipe tunes unlocked — ${ads.remainingHours(RewardType.TUNES)}h remaining"
+                val mins = ads.remainingMinutes(RewardType.TUNES)
+                text = "✅ Swipe tunes unlocked — ${mins}min remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Watch an ad to unlock all tunes for 3h"
+                text = "🔒 Tap any tune to unlock for 3h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
         }
         // Game status
-        val gameLocked = !ads.isUnlocked(RewardType.GAME)
+        val gameUnlocked = ads.isUnlocked(RewardType.GAME)
         findViewById<TextView>(R.id.gameAdStatus)?.apply {
-            if (!gameLocked) {
-                text = "✅ Game unlocked — open keyboard to play!"
-                setTextColor(Color.parseColor("#00C853"))
+            text = if (gameUnlocked) {
+                "✅ Game unlocked — open keyboard to play!"
             } else {
-                text = "🔒 Watch an ad to unlock for 3h"
-                setTextColor(Color.parseColor("#FFC400"))
+                "🔒 Tap to watch an ad and unlock for 3h"
             }
+            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
         }
         findViewById<TextView>(R.id.gameUnlockArrow)?.apply {
-            text = if (!gameLocked) "✓" else "▶"
-            setTextColor(if (!gameLocked) Color.parseColor("#00C853") else Color.parseColor("#FFC400"))
+            text = if (gameUnlocked) "✓" else "▶"
+            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
         }
     }
 
@@ -316,23 +312,26 @@ class MainActivity : AppCompatActivity() {
         card.setOnClickListener {
             if (theme.type == ThemeType.CUSTOM_IMAGE) {
                 pickImage.launch("image/*")
-            } else if (
-                (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) &&
-                !ads.isUnlocked(RewardType.THEMES)
-            ) {
-                // Save last tapped animated theme, then play ad directly
-                ads.saveLastAnimatedTheme(theme.id)
-                ads.showRewardedAd(
-                    activity   = this,
-                    type       = RewardType.THEMES,
-                    onRewarded = {
+            } else if (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) {
+                if (!ads.isUnlocked(RewardType.THEMES)) {
+                    // LOCKED → ad → 3hr unlock → apply theme
+                    ads.unlockWithInterstitial(this, RewardType.THEMES) {
+                        settings.lastAnimatedThemeId = theme.id
                         settings.selectedThemeId = theme.id
                         buildThemeRows()
                         updateAdStatusViews()
                         Toast.makeText(this, "✨ Themes unlocked for 3 hours!", Toast.LENGTH_SHORT).show()
                     }
-                )
+                } else {
+                    // ALREADY UNLOCKED → ad → apply new theme
+                    ads.showInterstitialThen(this) {
+                        settings.lastAnimatedThemeId = theme.id
+                        settings.selectedThemeId = theme.id
+                        buildThemeRows()
+                    }
+                }
             } else {
+                // Solid themes — no ad, apply directly
                 settings.selectedThemeId = theme.id
                 buildThemeRows()
             }
@@ -340,40 +339,36 @@ class MainActivity : AppCompatActivity() {
         return card
     }
 
-    // ── Setup Guide ───────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun showSetupGuide() {
         val steps = listOf(
-            "👋 Welcome to KeyAura!" to "Let's set up your keyboard in 3 quick steps.",
+            "👋 Welcome to KeyAura!" to "Let\'s set up your keyboard in 3 quick steps.",
             "⌨️ Step 1: Enable Keyboard" to "Go to Settings → Language & Input → Enable KeyAura Keyboard.",
-            "✅ Step 2: Select KeyAura" to "Tap 'Choose KeyAura Keyboard' and select it as your active keyboard.",
-            "✨ Step 3: Pick a Theme" to "Scroll down and tap any animated theme. Watch a short ad to unlock it for 3 hours. Enjoy!"
+            "✅ Step 2: Select KeyAura" to "Tap \'Choose KeyAura Keyboard\' and select it as your default keyboard.",
+            "✨ Step 3: Pick a Theme" to "Tap any animated theme → watch a short ad → unlock for 3 hours!"
         )
-        var currentStep = 0
-
-        fun showStep() {
-            if (currentStep >= steps.size) {
-                getSharedPreferences("keyaura_setup", MODE_PRIVATE).edit().putBoolean("setup_done", true).apply()
-                return
-            }
-            val (title, msg) = steps[currentStep]
-            val isLast = currentStep == steps.size - 1
-            androidx.appcompat.app.AlertDialog.Builder(this)
+        var step = 0
+        fun show() {
+            if (step >= steps.size) return
+            val (title, msg) = steps[step]
+            val isLast = step == steps.size - 1
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(title)
                 .setMessage(msg)
                 .setCancelable(false)
-                .setPositiveButton(if (isLast) "Let's Go! 🚀" else "Next →") { _, _ ->
-                    currentStep++
-                    if (!isLast) showStep()
-                    else getSharedPreferences("keyaura_setup", MODE_PRIVATE).edit().putBoolean("setup_done", true).apply()
+                .setPositiveButton(if (isLast) "Let\'s Go! 🚀" else "Next →") { _, _ ->
+                    step++
+                    if (isLast) {
+                        getSharedPreferences("keyaura_setup", MODE_PRIVATE)
+                            .edit().putBoolean("setup_done", true).apply()
+                    } else show()
                 }
-                .apply { if (currentStep > 0) setNegativeButton("← Back") { _, _ -> currentStep -= 2; showStep() } }
-                .show()
+            if (step > 0) dlg.setNegativeButton("← Back") { _, _ -> step -= 2; show() }
+            dlg.show()
         }
-        showStep()
+        show()
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun applyLogoGradient(tv: TextView) {
         tv.post {
