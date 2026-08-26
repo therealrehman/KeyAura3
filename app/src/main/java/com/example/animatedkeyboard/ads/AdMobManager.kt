@@ -9,8 +9,11 @@ import com.startapp.sdk.adsbase.StartAppAd
 import com.startapp.sdk.adsbase.StartAppSDK
 import com.startapp.sdk.adsbase.adlisteners.AdDisplayListener
 import com.startapp.sdk.adsbase.adlisteners.AdEventListener
-import com.startapp.sdk.adsbase.adlisteners.VideoListener
 
+/**
+ * Start.io Rewarded Ads manager for KeyAura.
+ * Drop-in replacement for AdMobManager — same API, same RewardType enum.
+ */
 class AdMobManager private constructor(private val appContext: Context) {
 
     private val prefs: SharedPreferences =
@@ -22,13 +25,15 @@ class AdMobManager private constructor(private val appContext: Context) {
     companion object {
         private const val TAG = "StartIOManager"
         private const val APP_ID = "207210854"
+
         const val UNLOCK_DURATION_MS = 3L * 60 * 60 * 1000
-        private const val KEY_THEMES_UNLOCK   = "themes_unlock_time"
-        private const val KEY_TUNES_UNLOCK    = "tunes_unlock_time"
-        private const val KEY_GAME_UNLOCK     = "game_unlock_time"
-        const val KEY_LAST_ANIMATED_THEME     = "last_animated_theme_id"
+
+        private const val KEY_THEMES_UNLOCK = "themes_unlock_time"
+        private const val KEY_TUNES_UNLOCK  = "tunes_unlock_time"
+        private const val KEY_GAME_UNLOCK   = "game_unlock_time"
 
         @Volatile private var instance: AdMobManager? = null
+
         fun getInstance(context: Context): AdMobManager =
             instance ?: synchronized(this) {
                 instance ?: AdMobManager(context.applicationContext).also { instance = it }
@@ -43,12 +48,7 @@ class AdMobManager private constructor(private val appContext: Context) {
         RewardType.GAME   -> KEY_GAME_UNLOCK
     }
 
-    fun saveLastAnimatedTheme(themeId: String) {
-        prefs.edit().putString(KEY_LAST_ANIMATED_THEME, themeId).apply()
-    }
-
-    fun getLastAnimatedTheme(): String? =
-        prefs.getString(KEY_LAST_ANIMATED_THEME, null)
+    // ── Unlock State ──────────────────────────────────────────────────────────
 
     fun isUnlocked(type: RewardType): Boolean {
         val t = prefs.getLong(unlockKey(type), 0L)
@@ -64,6 +64,7 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     private fun grantUnlock(type: RewardType) {
         prefs.edit().putLong(unlockKey(type), System.currentTimeMillis()).apply()
+        Log.d(TAG, "Unlock granted: $type for 6 hours")
     }
 
     fun grantMultipleUnlocks(vararg types: RewardType) {
@@ -71,31 +72,40 @@ class AdMobManager private constructor(private val appContext: Context) {
         val now = System.currentTimeMillis()
         for (type in types) editor.putLong(unlockKey(type), now)
         editor.apply()
+        Log.d(TAG, "Multi-unlock granted: ${types.toList()}")
     }
 
+    // ── Initialization ────────────────────────────────────────────────────────
+
     fun initialize(context: Context) {
-        StartAppSDK.init(context, APP_ID, true)
+        Log.d(TAG, "Initializing Start.io SDK — appId=$APP_ID")
+        StartAppSDK.init(context, APP_ID, false)
         StartAppSDK.setUserConsent(context, "pas", System.currentTimeMillis(), true)
         loadAd()
     }
 
+    // ── Load Ad ───────────────────────────────────────────────────────────────
+
     private fun loadAd() {
         if (isLoading) return
         isLoading = true
+        Log.d(TAG, "Loading Start.io rewarded ad")
         val ad = StartAppAd(appContext)
         ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
             override fun onReceiveAd(a: com.startapp.sdk.adsbase.Ad) {
+                Log.d(TAG, "Rewarded ad loaded")
                 rewardedAd = ad
                 isLoading = false
-                Log.d(TAG, "Ad loaded ✓")
             }
             override fun onFailedToReceiveAd(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.e(TAG, "Failed to load rewarded ad")
                 rewardedAd = null
                 isLoading = false
-                Log.e(TAG, "Ad load failed")
             }
         })
     }
+
+    // ── Show Rewarded Ad ──────────────────────────────────────────────────────
 
     fun showRewardedAd(
         activity: Activity,
@@ -105,6 +115,7 @@ class AdMobManager private constructor(private val appContext: Context) {
     ) {
         val ad = rewardedAd
         if (ad == null) {
+            Log.w(TAG, "Ad not ready — loading")
             activity.runOnUiThread {
                 Toast.makeText(activity, "Ad is loading… please try again.", Toast.LENGTH_SHORT).show()
             }
@@ -113,21 +124,20 @@ class AdMobManager private constructor(private val appContext: Context) {
             return
         }
 
-        ad.setVideoListener(VideoListener {
-            grantUnlock(type)
-            rewardedAd = null
-            loadAd()
-            activity.runOnUiThread { onRewarded() }
-        })
-
         ad.showAd(object : AdDisplayListener {
             override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.d(TAG, "Ad hidden — reward granted")
+                grantUnlock(type)
                 rewardedAd = null
                 loadAd()
+                activity.runOnUiThread { onRewarded() }
             }
-            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {}
+            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.d(TAG, "Ad displaying")
+            }
             override fun adClicked(a: com.startapp.sdk.adsbase.Ad?) {}
             override fun adNotDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
+                Log.e(TAG, "Ad failed to display")
                 rewardedAd = null
                 loadAd()
                 activity.runOnUiThread {

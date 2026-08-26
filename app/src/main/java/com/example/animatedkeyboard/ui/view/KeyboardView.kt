@@ -1468,6 +1468,9 @@ class KeyboardView @JvmOverloads constructor(
                 createKeyMap(width, height)
                 postInvalidateOnAnimation()
             }
+            "watchAdChip" -> {
+                keyListener?.onKey(-16, "WatchAd")
+            }
             "Clipboard" -> {
                 finalizeRomanBuffer()
                 keyListener?.onKey(-10, "Clipboard")
@@ -1479,9 +1482,6 @@ class KeyboardView @JvmOverloads constructor(
             "Mic" -> {
                 finalizeRomanBuffer()
                 keyListener?.onKey(-11, "Mic")
-            }
-            "watchAdChip" -> {
-                keyListener?.onKey(-16, "watchAdChip")
             }
             "KbSettings" -> {
                 keyListener?.onKey(-15, "KbSettings")
