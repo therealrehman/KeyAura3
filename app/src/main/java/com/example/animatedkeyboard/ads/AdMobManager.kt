@@ -91,7 +91,7 @@ class AdMobManager private constructor(private val appContext: Context) {
         isLoading = true
         Log.d(TAG, "Loading Start.io rewarded ad")
         val ad = StartAppAd(appContext)
-        ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
+        ad.loadAd(StartAppAd.AdMode.AUTOMATIC, object : AdEventListener {
             override fun onReceiveAd(a: com.startapp.sdk.adsbase.Ad) {
                 Log.d(TAG, "Rewarded ad loaded")
                 rewardedAd = ad
@@ -124,13 +124,24 @@ class AdMobManager private constructor(private val appContext: Context) {
             return
         }
 
+        // AUTOMATIC mode — reward when ad is closed (user watched it)
+        // VideoListener fires if it happens to show a video
+        ad.setVideoListener {
+            Log.d(TAG, "Video completed — granting reward for $type")
+            grantUnlock(type)
+            activity.runOnUiThread { onRewarded() }
+        }
+
         ad.showAd(object : AdDisplayListener {
             override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
-                Log.d(TAG, "Ad hidden — reward granted")
-                grantUnlock(type)
+                Log.d(TAG, "Ad hidden — granting reward for $type")
+                // Grant reward on close for non-video ads (interstitial)
+                if (!isUnlocked(type)) {
+                    grantUnlock(type)
+                    activity.runOnUiThread { onRewarded() }
+                }
                 rewardedAd = null
                 loadAd()
-                activity.runOnUiThread { onRewarded() }
             }
             override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
                 Log.d(TAG, "Ad displaying")
