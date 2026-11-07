@@ -782,6 +782,7 @@ class KeyboardView @JvmOverloads constructor(
                 val p = Paint(textPaint).apply { textSize = dp(11f) }
                 canvas.drawText("اردو", rect.exactCenterX(), rect.exactCenterY() + (p.textSize / 3f), p)
             }
+            "watchAdChip" -> drawFittedChipText(canvas, "🔓 Unlock themes", rect)
             "Clipboard" -> drawClipboardIcon(canvas, rect, textPaint.color)
             "Game" -> drawGameIcon(canvas, rect, textPaint.color)
             "Mic" -> drawMicIcon(canvas, rect, textPaint.color)

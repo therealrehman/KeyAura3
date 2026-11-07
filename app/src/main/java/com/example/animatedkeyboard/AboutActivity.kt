@@ -143,7 +143,7 @@ KeyAura is a fully custom animated Android keyboard built from the ground up usi
 Unlike other keyboards, KeyAura does not use the standard Android KeyboardView at all. Every pixel is drawn in code for maximum visual polish and performance.
         """.trimIndent(), ACCENT)
 
-        row4("15+\nThemes", "0\nAds", "100%\nOn-Device", "2\nLayouts")
+        row4("15+\nThemes", "Free\nto use", "100%\nOn-Device", "2\nLayouts")
 
         sectionCard("✨ Key Features", """
 • Animated themes with per-key color bursts

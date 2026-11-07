@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Animated themes unlocked — ${mins}min remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any animated theme to unlock for 3h"
+                text = "🔒 Tap any animated theme to unlock for 12h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -219,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                 text = "✅ Swipe tunes unlocked — ${mins}min remaining"
                 setTextColor(Color.parseColor("#00C853"))
             } else {
-                text = "🔒 Tap any tune to unlock for 3h"
+                text = "🔒 Tap any tune to unlock for 12h"
                 setTextColor(Color.parseColor("#FFC400"))
             }
             visibility = View.VISIBLE
@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
             text = if (gameUnlocked) {
                 "✅ Game unlocked — open keyboard to play!"
             } else {
-                "🔒 Tap to watch an ad and unlock for 3h"
+                "🔒 Tap to watch an ad and unlock for 12h"
             }
             setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
         }

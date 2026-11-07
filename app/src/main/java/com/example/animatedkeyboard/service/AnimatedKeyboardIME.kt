@@ -325,7 +325,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (!adsManager.isUnlocked(AdMobManager.RewardType.GAME)) {
             android.widget.Toast.makeText(
                 this,
-                "🔒 Game locked — open KeyAura app to unlock for 3h 🎮",
+                "🔒 Game locked — open KeyAura app to unlock for 12h 🎮",
                 android.widget.Toast.LENGTH_LONG
             ).show()
             return
@@ -386,8 +386,18 @@ class AnimatedKeyboardIME : InputMethodService() {
         } else {
             lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
         }
-        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-        rootContainer.layoutParams = lp
+        val dm = resources.displayMetrics
+        val shortSide = minOf(dm.widthPixels, dm.heightPixels)   // portrait width
+        val longSide = maxOf(dm.widthPixels, dm.heightPixels)
+        if (isLandscapeNow()) {
+            lp.width = shortSide
+            rootContainer.layoutParams = lp
+            rootContainer.translationX = (longSide - shortSide) / 2f   // centred, not stretched
+        } else {
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+            rootContainer.layoutParams = lp
+            rootContainer.translationX = 0f
+        }
     }
 
     override fun onDestroy() {
