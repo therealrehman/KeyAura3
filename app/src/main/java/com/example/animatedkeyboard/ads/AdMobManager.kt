@@ -41,6 +41,7 @@ class AdMobManager private constructor(private val appContext: Context) {
     private var rewardedAd: StartAppAd? = null
     private var rewardedLoading = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var requestPending = false   // one unlock request at a time
 
     companion object {
         private const val TAG = "KeyAuraAds"
@@ -169,15 +170,18 @@ class AdMobManager private constructor(private val appContext: Context) {
     }
 
     fun unlockWithRewarded(activity: Activity, type: RewardType, onComplete: () -> Unit) {
+        if (requestPending) return                       // already waiting: ignore extra taps silently
         if (!isOnline()) { showNoInternet(activity); return }
+        requestPending = true
+        val done: () -> Unit = { requestPending = false; onComplete() }
         val ad = rewardedAd
         if (ad != null) {
-            showRewarded(activity, ad, type, onComplete)
+            showRewarded(activity, ad, type, done)
             return
         }
         loadRewarded()
         toast(activity, "Ad load ho raha hai, thoda wait karein...")
-        waitForRewarded(activity, type, onComplete, System.currentTimeMillis() + 8_000L)
+        waitForRewarded(activity, type, done, System.currentTimeMillis() + 8_000L)
     }
 
     private fun waitForRewarded(
@@ -211,6 +215,7 @@ class AdMobManager private constructor(private val appContext: Context) {
                     grantUnlock(type, UNLOCK_DURATION_MS)
                     activity.runOnUiThread { onComplete() }
                 } else {
+                    requestPending = false
                     toast(activity, "Poori video dekhne par 12 ghante ka unlock milega.")
                 }
             }
@@ -225,7 +230,7 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     /** No rewarded ad could be shown: try an interstitial, else unlock for 1 hour. Offline never unlocks. */
     private fun fallbackUnlock(activity: Activity, type: RewardType, onComplete: () -> Unit) {
-        if (!isOnline()) { showNoInternet(activity); return }
+        if (!isOnline()) { requestPending = false; showNoInternet(activity); return }
         val ia = interstitialAd
         if (ia == null) {
             loadInterstitial()

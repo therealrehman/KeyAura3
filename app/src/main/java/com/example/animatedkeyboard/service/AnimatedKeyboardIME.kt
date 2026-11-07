@@ -60,6 +60,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         // Remember the portrait height; in landscape reuse it so the keyboard stays the same size.
         rootContainer.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ ->
             val h = b - t
+            if (isLandscapeNow()) applyKeyboardHeight()
             if (h > 0 && !isLandscapeNow()) {
                 getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE).edit().putInt("kb_h_portrait", h).apply()
             }
@@ -376,28 +377,36 @@ class AnimatedKeyboardIME : InputMethodService() {
     /** Portrait: normal height. Landscape: same height as portrait (not full screen). */
     private fun applyKeyboardHeight() {
         if (!::rootContainer.isInitialized) return
-        val lp = rootContainer.layoutParams ?: ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        if (isLandscapeNow()) {
-            val dm = resources.displayMetrics
-            val portraitScreenH = maxOf(dm.widthPixels, dm.heightPixels)
-            val saved = getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE).getInt("kb_h_portrait", 0)
-            lp.height = if (saved > 0) saved else (portraitScreenH * 0.45f).toInt()
-        } else {
-            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
-        }
         val dm = resources.displayMetrics
         val shortSide = minOf(dm.widthPixels, dm.heightPixels)   // portrait width
         val longSide = maxOf(dm.widthPixels, dm.heightPixels)
-        if (isLandscapeNow()) {
-            lp.width = shortSide
-            rootContainer.layoutParams = lp
-            rootContainer.translationX = (longSide - shortSide) / 2f   // centred, not stretched
+        val landscape = isLandscapeNow()
+
+        val newH: Int
+        val newW: Int
+        val tx: Float
+        if (landscape) {
+            val saved = getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE)
+                .getInt("kb_h_portrait", 0)
+            newH = if (saved > 0) saved else (longSide * 0.45f).toInt()
+            newW = shortSide
+            // Use the REAL width of the window the keyboard sits in, not the screen metrics.
+            val parentW = (rootContainer.parent as? View)?.width?.takeIf { it > 0 } ?: longSide
+            tx = maxOf(0f, (parentW - newW) / 2f)
         } else {
-            lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-            rootContainer.layoutParams = lp
-            rootContainer.translationX = 0f
+            newH = ViewGroup.LayoutParams.WRAP_CONTENT
+            newW = ViewGroup.LayoutParams.MATCH_PARENT
+            tx = 0f
         }
+
+        val lp = rootContainer.layoutParams ?: ViewGroup.LayoutParams(newW, newH)
+        // Only touch layoutParams when something actually changed (avoids a relayout loop).
+        if (lp.width != newW || lp.height != newH) {
+            lp.width = newW
+            lp.height = newH
+            rootContainer.layoutParams = lp
+        }
+        if (rootContainer.translationX != tx) rootContainer.translationX = tx
     }
 
     override fun onDestroy() {
