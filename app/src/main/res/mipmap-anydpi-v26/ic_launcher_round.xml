@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- KeyAura icon: gradient background, keycap with "A" in the 66dp safe zone, monochrome layer for themed icons -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background"/>
-    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+    <background android:drawable="@drawable/ic_kl_bg"/>
+    <foreground android:drawable="@drawable/ic_kl_fg"/>
+    <monochrome android:drawable="@drawable/ic_kl_mono"/>
 </adaptive-icon>
