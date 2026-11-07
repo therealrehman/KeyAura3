@@ -1,0 +1,422 @@
+package com.example.animatedkeyboard
+
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Shader
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.SeekBar
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
+import com.example.animatedkeyboard.ads.AdMobManager
+import com.example.animatedkeyboard.ads.AdMobManager.RewardType
+import com.example.animatedkeyboard.settings.KeyboardSettings
+import com.example.animatedkeyboard.theme.KeyboardTheme
+import com.example.animatedkeyboard.theme.ThemeRepository
+import com.example.animatedkeyboard.theme.ThemeType
+import java.io.File
+import kotlin.math.roundToInt
+
+class MainActivity : AppCompatActivity() {
+
+    private val settings by lazy { KeyboardSettings.getInstance(this) }
+    private val ads     by lazy { AdMobManager.getInstance(this) }
+    private fun dp(v: Float) = v * resources.displayMetrics.density
+    private fun dpi(v: Float) = dp(v).toInt()
+
+    private val pickImage =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri ?: return@registerForActivityResult
+            try {
+                val file = File(filesDir, "keyboard_bg.jpg")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                } ?: throw IllegalStateException("Cannot open image")
+                settings.keyboardImagePath = file.absolutePath
+                settings.selectedThemeId = "custom_image"
+                buildThemeRows()
+                Toast.makeText(this, "Keyboard photo applied ✓", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Could not load image", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        ads.attachBanner(this, findViewById(R.id.bannerContainer))
+        askAdsConsentIfNeeded()
+
+        // Initialize Start.io ads
+        ads.initialize(this)
+
+        // First install setup guide
+        val setupPrefs = getSharedPreferences("keyaura_setup", MODE_PRIVATE)
+        if (!setupPrefs.getBoolean("setup_done", false)) {
+            showSetupGuide()
+        }
+
+        // Keyboard chip tapped before app was open → auto unlock
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            autoUnlockThemes()
+        }
+
+        applyLogoGradient(findViewById(R.id.logoText))
+
+        findViewById<LinearLayout>(R.id.btnEnable).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        }
+        findViewById<LinearLayout>(R.id.btnChoose).setOnClickListener {
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+        }
+        findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { v ->
+            val popup = android.widget.PopupMenu(this, v)
+            popup.menu.add(0, 1, 0, "About KeyAura")
+            popup.menu.add(0, 2, 1, "Privacy Policy")
+            popup.menu.add(0, 3, 2, "Terms & Conditions")
+            popup.menu.add(0, 4, 3, "Contact Us")
+            popup.setOnMenuItemClickListener { item ->
+                val intent = Intent(this, AboutActivity::class.java)
+                intent.putExtra("tab", item.itemId - 1)
+                startActivity(intent)
+                true
+            }
+            popup.show()
+        }
+        findViewById<LinearLayout>(R.id.btnToggleSound).setOnClickListener {
+            settings.soundEnabled = !settings.soundEnabled
+            updateToggleStates()
+        }
+        findViewById<LinearLayout>(R.id.btnToggleVibration).setOnClickListener {
+            settings.hapticEnabled = !settings.hapticEnabled
+            updateToggleStates()
+        }
+
+        val slider = findViewById<SeekBar>(R.id.volumeSlider)
+        val volumeLabel = findViewById<TextView>(R.id.volumeLabel)
+        slider.progress = (settings.keyVolume * 100).roundToInt()
+        volumeLabel.text = "${slider.progress}%"
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                if (fromUser) { settings.keyVolume = p / 100f; volumeLabel.text = "$p%" }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        // Swipe Tune — directly open, no lock
+        findViewById<CardView>(R.id.btnTune).setOnClickListener {
+            startActivity(Intent(this, TuneSelectionActivity::class.java))
+        }
+
+        // Game — locked: unlock with rewarded video; unlocked: show status
+        findViewById<CardView>(R.id.gameUnlockCard).setOnClickListener {
+            if (ads.isUnlocked(RewardType.GAME)) {
+                Toast.makeText(this, "🎮 Game is unlocked! Open your keyboard and tap 🎮", Toast.LENGTH_LONG).show()
+            } else {
+                ads.unlockWithRewarded(this, RewardType.GAME) {
+                    updateAdStatusViews()
+                    Toast.makeText(this, "🎮 Game unlocked for 12 hours! Open your keyboard.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        findViewById<TextView>(R.id.btnClearImage).setOnClickListener {
+            settings.keyboardImagePath = null
+            if (settings.selectedThemeId == "custom_image") settings.selectedThemeId = "rainbow"
+            buildThemeRows()
+        }
+
+        buildThemeRows()
+        updateAdStatusViews()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkThemeExpiry()   // if 12hrs passed, fall back to static theme
+        updateButtonStates()
+        updateToggleStates()
+        buildThemeRows()
+        updateAdStatusViews()
+    }
+
+    // If animated theme is selected but unlock expired → switch to static fallback
+    private fun checkThemeExpiry() {
+        if (!ads.isUnlocked(RewardType.THEMES)) {
+            val current = settings.selectedThemeId
+            val isAnimated = current != settings.staticFallbackThemeId &&
+                             current != "custom_color" && current != "custom_image" &&
+                             !current.startsWith("solid_")
+            if (isAnimated) {
+                settings.lastAnimatedThemeId = current      // remember for re-apply
+                settings.selectedThemeId = settings.staticFallbackThemeId
+            }
+        }
+    }
+
+    private fun askAdsConsentIfNeeded() {
+        if (!ads.needsConsentAnswer()) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Ads settings")
+            .setMessage("KeyAura is free and shows ads. Allow ads based on your interests? " +
+                "If you choose No, you will see non-personalized ads.")
+            .setPositiveButton("Yes") { _, _ -> ads.saveConsent(this, true) }
+            .setNegativeButton("No") { _, _ -> ads.saveConsent(this, false) }
+            .setCancelable(false)
+            .show()
+    }
+
+    // Called when user taps keyboard chip or unlock button — show ad → restore animated theme
+    private fun autoUnlockThemes() {
+        val lastTheme = settings.lastAnimatedThemeId ?: return
+        ads.unlockWithRewarded(this, RewardType.THEMES) {
+            settings.selectedThemeId = lastTheme
+            buildThemeRows()
+            updateAdStatusViews()
+            Toast.makeText(this, "✨ Themes unlocked for 12 hours!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Keyboard chip tapped → auto-show unlock interstitial for themes
+        if (intent.getBooleanExtra("auto_show_theme_ad", false)) {
+            autoUnlockThemes()
+        }
+    }
+
+    // ── Ad status views ───────────────────────────────────────────────────────
+
+    private fun updateAdStatusViews() {
+        // Themes status
+        findViewById<TextView>(R.id.themesAdStatus)?.apply {
+            if (ads.isUnlocked(RewardType.THEMES)) {
+                val mins = ads.remainingMinutes(RewardType.THEMES)
+                text = "✅ Animated themes unlocked — ${mins}min remaining"
+                setTextColor(Color.parseColor("#00C853"))
+            } else {
+                text = "🔒 Tap any animated theme to unlock for 3h"
+                setTextColor(Color.parseColor("#FFC400"))
+            }
+            visibility = View.VISIBLE
+        }
+        // Tunes status
+        findViewById<TextView>(R.id.tuneAdStatus)?.apply {
+            if (ads.isUnlocked(RewardType.TUNES)) {
+                val mins = ads.remainingMinutes(RewardType.TUNES)
+                text = "✅ Swipe tunes unlocked — ${mins}min remaining"
+                setTextColor(Color.parseColor("#00C853"))
+            } else {
+                text = "🔒 Tap any tune to unlock for 3h"
+                setTextColor(Color.parseColor("#FFC400"))
+            }
+            visibility = View.VISIBLE
+        }
+        // Game status
+        val gameUnlocked = ads.isUnlocked(RewardType.GAME)
+        findViewById<TextView>(R.id.gameAdStatus)?.apply {
+            text = if (gameUnlocked) {
+                "✅ Game unlocked — open keyboard to play!"
+            } else {
+                "🔒 Tap to watch an ad and unlock for 3h"
+            }
+            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
+        }
+        findViewById<TextView>(R.id.gameUnlockArrow)?.apply {
+            text = if (gameUnlocked) "✓" else "▶"
+            setTextColor(Color.parseColor(if (gameUnlocked) "#00C853" else "#FFC400"))
+        }
+    }
+
+    // ── Theme Rows — all unlocked ─────────────────────────────────────────────
+
+    private fun buildThemeRows() {
+        val selected = settings.selectedThemeId
+
+        val animRow = findViewById<LinearLayout>(R.id.animatedThemeRow)
+        animRow.removeAllViews()
+        val animList = listOf(ThemeRepository.defaultTheme) + ThemeRepository.animatedThemes +
+                listOf(ThemeRepository.imageTheme)
+        for (t in animList) animRow.addView(themeCard(t, selected == t.id))
+
+        val solidRow = findViewById<LinearLayout>(R.id.solidThemeRow)
+        solidRow.removeAllViews()
+        for (t in ThemeRepository.solidThemes) solidRow.addView(themeCard(t, selected == t.id))
+
+        findViewById<TextView>(R.id.btnClearImage).visibility =
+            if (settings.keyboardImagePath != null) View.VISIBLE else View.GONE
+    }
+
+    private fun themeCard(theme: KeyboardTheme, selected: Boolean): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpi(86f), dpi(104f)).apply { marginEnd = dpi(10f) }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(14f)
+                setColor(Color.parseColor("#0C1020"))
+                if (selected) setStroke(dpi(2f), theme.accentColor)
+            }
+            isClickable = true
+        }
+
+        if (theme.type == ThemeType.CUSTOM_IMAGE) {
+            card.addView(TextView(this).apply {
+                text = "🖼️"; textSize = 26f; gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpi(52f), dpi(52f))
+            })
+        } else {
+            card.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dpi(52f), dpi(52f))
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    when (theme.type) {
+                        ThemeType.ANIMATED_MULTI -> {
+                            gradientType = GradientDrawable.SWEEP_GRADIENT
+                            colors = intArrayOf(
+                                Color.parseColor("#FF5050"), Color.parseColor("#FFDC00"),
+                                Color.parseColor("#00FF96"), Color.parseColor("#3296FF"),
+                                Color.parseColor("#B432FF"), Color.parseColor("#FF5050")
+                            )
+                        }
+                        ThemeType.SOLID -> {
+                            gradientType = GradientDrawable.RADIAL_GRADIENT
+                            gradientRadius = dp(30f)
+                            colors = intArrayOf(
+                                ThemeRepository.lighten(theme.accentColor, 0.3f),
+                                theme.accentColor
+                            )
+                        }
+                        else -> {
+                            gradientType = GradientDrawable.RADIAL_GRADIENT
+                            gradientRadius = dp(30f)
+                            colors = intArrayOf(
+                                ThemeRepository.lighten(theme.accentColor, 0.5f),
+                                theme.accentColor,
+                                ThemeRepository.darken(theme.accentColor, 0.55f)
+                            )
+                        }
+                    }
+                }
+            })
+        }
+
+        card.addView(TextView(this).apply {
+            text = theme.name; textSize = 11f
+            setTextColor(if (selected) theme.accentColor else Color.parseColor("#AAB0C8"))
+            gravity = Gravity.CENTER; maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dpi(4f) }
+        })
+
+        card.setOnClickListener {
+            if (theme.type == ThemeType.CUSTOM_IMAGE) {
+                pickImage.launch("image/*")
+            } else if (theme.type == ThemeType.ANIMATED_MULTI || theme.type == ThemeType.ANIMATED_SINGLE) {
+                if (!ads.isUnlocked(RewardType.THEMES)) {
+                    // LOCKED → rewarded video → 12hr unlock → apply theme
+                    ads.unlockWithRewarded(this, RewardType.THEMES) {
+                        settings.lastAnimatedThemeId = theme.id
+                        settings.selectedThemeId = theme.id
+                        buildThemeRows()
+                        updateAdStatusViews()
+                        Toast.makeText(this, "✨ Themes unlocked for 12 hours!", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    // ALREADY UNLOCKED → ad → apply new theme
+                    ads.showInterstitialThen(this) {
+                        settings.lastAnimatedThemeId = theme.id
+                        settings.selectedThemeId = theme.id
+                        buildThemeRows()
+                    }
+                }
+            } else {
+                // Solid themes — no ad, apply directly
+                settings.selectedThemeId = theme.id
+                buildThemeRows()
+            }
+        }
+        return card
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun showSetupGuide() {
+        val steps = listOf(
+            "👋 Welcome to KeyAura!" to "Let\'s set up your keyboard in 3 quick steps.",
+            "⌨️ Step 1: Enable Keyboard" to "Go to Settings → Language & Input → Enable KeyAura Keyboard.",
+            "✅ Step 2: Select KeyAura" to "Tap \'Choose KeyAura Keyboard\' and select it as your default keyboard.",
+            "✨ Step 3: Pick a Theme" to "Tap any animated theme → watch a short ad → unlock for 12 hours!"
+        )
+        var step = 0
+        fun show() {
+            if (step >= steps.size) return
+            val (title, msg) = steps[step]
+            val isLast = step == steps.size - 1
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(msg)
+                .setCancelable(false)
+                .setPositiveButton(if (isLast) "Let\'s Go! 🚀" else "Next →") { _, _ ->
+                    step++
+                    if (isLast) {
+                        getSharedPreferences("keyaura_setup", MODE_PRIVATE)
+                            .edit().putBoolean("setup_done", true).apply()
+                    } else show()
+                }
+            if (step > 0) dlg.setNegativeButton("← Back") { _, _ -> step -= 2; show() }
+            dlg.show()
+        }
+        show()
+    }
+
+    private fun applyLogoGradient(tv: TextView) {
+        tv.post {
+            val w = tv.paint.measureText(tv.text.toString())
+            if (w > 0f) {
+                tv.paint.shader = LinearGradient(0f, 0f, w, 0f,
+                    Color.parseColor("#4488FF"), Color.parseColor("#FF64C8"), Shader.TileMode.CLAMP)
+                tv.invalidate()
+            }
+        }
+    }
+
+    private fun updateButtonStates() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
+        val btnEnable = findViewById<LinearLayout>(R.id.btnEnable)
+        val btnEnableLabel = findViewById<TextView>(R.id.btnEnableLabel)
+        if (enabled) {
+            btnEnableLabel.text = "Keyboard Enabled ✓"
+            btnEnable.isEnabled = false; btnEnable.alpha = 0.6f
+        } else {
+            btnEnableLabel.text = getString(R.string.enable_keyboard)
+            btnEnable.isEnabled = true; btnEnable.alpha = 1.0f
+        }
+    }
+
+    private fun updateToggleStates() {
+        val iconSound = findViewById<TextView>(R.id.iconSound)
+        val labelSound = findViewById<TextView>(R.id.labelSound)
+        val iconVib = findViewById<TextView>(R.id.iconVibration)
+        val labelVib = findViewById<TextView>(R.id.labelVibration)
+        iconSound.alpha = if (settings.soundEnabled) 1.0f else 0.35f
+        labelSound.text = if (settings.soundEnabled) "Sound" else "Sound off"
+        iconVib.alpha = if (settings.hapticEnabled) 1.0f else 0.35f
+        labelVib.text = if (settings.hapticEnabled) "Vibration" else "Vibration off"
+    }
+}
