@@ -143,7 +143,7 @@ KeyAura is a fully custom animated Android keyboard built from the ground up usi
 Unlike other keyboards, KeyAura does not use the standard Android KeyboardView at all. Every pixel is drawn in code for maximum visual polish and performance.
         """.trimIndent(), ACCENT)
 
-        row4("15+\nThemes", "Free\nto use", "100%\nOn-Device", "2\nLayouts")
+        row4("15+\nThemes", "Free\nto use", "Local\nTyping", "2\nLayouts")
 
         sectionCard("✨ Key Features", """
 • Animated themes with per-key color bursts
@@ -168,10 +168,10 @@ We build apps we use ourselves — which means every bug you find is one we've p
         sectionCard("📦 App Info", """
 App Name: KeyAura
 Developer: OKLabs
-Package: com.example.animatedkeyboard
+Package: com.oklabs.keyaura
 Category: Keyboard & Input Methods
 Platform: Android 7.0 (API 24) and above
-Version: See Google Play for latest
+Version: 1.1.10
         """.trimIndent(), MUTED)
     }
 
@@ -376,11 +376,11 @@ Subject: [KeyAura Privacy] Your inquiry
 We respond to all privacy requests within 72 hours.
         """.trimIndent(), MUTED)
 
-        sectionCard("📱 Find Us on Google Play", """
-Search "KeyAura" on Google Play Store or visit:
-play.google.com/store/apps
+        sectionCard("📱 Find Us on Huawei AppGallery", """
+Search "KeyAura" on Huawei AppGallery or visit:
+appgallery.huawei.com
 
-You can also leave a review on the Play Store — it helps other users discover the app and helps us know what to improve.
+You can also leave a review on AppGallery — it helps other users discover the app and helps us know what to improve.
         """.trimIndent(), ACCENT)
     }
 
