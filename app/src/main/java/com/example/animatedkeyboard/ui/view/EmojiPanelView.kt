@@ -41,10 +41,7 @@ class EmojiPanelView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
-        val dm = resources.displayMetrics
-        val isLandscape = dm.widthPixels > dm.heightPixels
-        val desiredHeight = if (isLandscape) (dm.heightPixels * 0.30f).toInt()
-        else (dm.heightPixels * 0.35f).toInt()
+        val desiredHeight = KeyboardMetrics.heightPx(context)
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(desiredHeight, View.MeasureSpec.EXACTLY)

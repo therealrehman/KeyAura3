@@ -26,10 +26,12 @@ import com.example.animatedkeyboard.ui.view.ClipboardPanelView
 import com.example.animatedkeyboard.ui.view.EmojiPanelView
 import com.example.animatedkeyboard.ui.view.EmojiSearchStripView
 import com.example.animatedkeyboard.ui.view.GamePanelView
+import com.example.animatedkeyboard.ui.view.KeyboardMetrics
 import com.example.animatedkeyboard.ui.view.KeyboardView
 
 class AnimatedKeyboardIME : InputMethodService() {
 
+    private lateinit var inputWrapper: FrameLayout
     private lateinit var rootContainer: FrameLayout
     private lateinit var keyboardView: KeyboardView
     private lateinit var emojiPanelView: EmojiPanelView
@@ -55,17 +57,17 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onCreateInputView(): View {
+        // The framework gives the view we return MATCH_PARENT x WRAP_CONTENT, so we return a plain
+        // full-width wrapper and put the real keyboard (rootContainer) inside it. In landscape the
+        // keyboard is a portrait-width block centred by gravity: no translation hacks, so the window
+        // height, the insets and what you see on screen all stay in sync (nothing floating or clipped).
+        inputWrapper = FrameLayout(this)
         rootContainer = FrameLayout(this)
+        inputWrapper.addView(rootContainer, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
         stripHeightPx = (52 * resources.displayMetrics.density).toInt()
-        // Remember the portrait height; in landscape reuse it so the keyboard stays the same size.
-        rootContainer.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ ->
-            val h = b - t
-            if (isLandscapeNow()) applyKeyboardHeight()
-            if (h > 0 && !isLandscapeNow()) {
-                getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE).edit().putInt("kb_h_portrait", h).apply()
-            }
-        }
-        applyKeyboardHeight()
+        applyKeyboardSize()
 
         window?.window?.let { w -> w.navigationBarColor = android.graphics.Color.BLACK }
         window?.setVolumeControlStream(AudioManager.STREAM_MUSIC)
@@ -161,7 +163,7 @@ class AnimatedKeyboardIME : InputMethodService() {
         rootContainer.addView(emojiSearchStrip, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, stripHeightPx, Gravity.TOP))
 
         registerClipboardListener()
-        return rootContainer
+        return inputWrapper
     }
 
     // ---------- Emoji search via main keyboard ----------
@@ -362,62 +364,50 @@ class AnimatedKeyboardIME : InputMethodService() {
             keyboardView.setImeAction(resolveEditorAction(info))
         }
         exitEmojiSearch()
+        applyKeyboardSize()
         if (::emojiPanelView.isInitialized && ::keyboardView.isInitialized) showKeyboard()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        applyKeyboardHeight()
-        if (::keyboardView.isInitialized) { keyboardView.requestLayout(); keyboardView.invalidate() }
+        applyKeyboardSize()
+        relayoutAllViews()
     }
 
-    private fun isLandscapeNow(): Boolean =
-        resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    /**
+     * The keys and every panel size themselves from [KeyboardMetrics] (not from the parent's
+     * measure spec), so after a rotation each one has to be asked to measure again explicitly.
+     */
+    private fun relayoutAllViews() {
+        if (::keyboardView.isInitialized) { keyboardView.requestLayout(); keyboardView.invalidate() }
+        if (::emojiPanelView.isInitialized) emojiPanelView.requestLayout()
+        if (::clipboardPanelView.isInitialized) clipboardPanelView.requestLayout()
+        if (::gamePanelView.isInitialized) gamePanelView.requestLayout()
+        if (::rootContainer.isInitialized) rootContainer.requestLayout()
+    }
 
-    /** Portrait: normal height. Landscape: same height as portrait (not full screen). */
-    private fun applyKeyboardHeight() {
+    /**
+     * Portrait: full width, bottom aligned.
+     * Landscape: portrait-width block, centred, bottom aligned. Height is always WRAP_CONTENT because
+     * the keyboard and panels measure themselves to [KeyboardMetrics.heightPx], so the IME window ends
+     * up exactly keyboard-tall (apps resize correctly, no empty band above or below the keys).
+     */
+    private fun applyKeyboardSize() {
         if (!::rootContainer.isInitialized) return
-        val dm = resources.displayMetrics
-        val shortSide = minOf(dm.widthPixels, dm.heightPixels)   // portrait width
-        val longSide = maxOf(dm.widthPixels, dm.heightPixels)
-        val landscape = isLandscapeNow()
-
-        val newH: Int
-        val newW: Int
-        val tx: Float
-        val ty: Float
-        if (landscape) {
-            val saved = getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE)
-                .getInt("kb_h_portrait", 0)
-            val portraitH = if (saved > 0) saved else (longSide * 0.45f).toInt()
-            newH = portraitH                           // same height as portrait (size marked by user)
-            newW = shortSide
-            // Use the REAL width of the window the keyboard sits in, not the screen metrics.
-            val parentW = (rootContainer.parent as? View)?.width?.takeIf { it > 0 } ?: longSide
-            tx = maxOf(0f, (parentW - newW) / 2f)
-            // The real height of the IME window (the parent view is sized to the keyboard, so it cannot tell us).
-            val windowH = window?.window?.decorView?.height?.takeIf { it > 0 }
-                ?: (rootContainer.parent as? View)?.height?.takeIf { it > 0 }
-                ?: shortSide
-            ty = maxOf(0f, (windowH - newH).toFloat())   // pinned to the bottom edge of the window
-        } else {
-            newH = ViewGroup.LayoutParams.WRAP_CONTENT
-            newW = ViewGroup.LayoutParams.MATCH_PARENT
-            tx = 0f
-            ty = 0f
-        }
-
-        val lp = rootContainer.layoutParams ?: ViewGroup.LayoutParams(newW, newH)
+        val lp = rootContainer.layoutParams as? FrameLayout.LayoutParams
+            ?: FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        val newW = if (KeyboardMetrics.isLandscape(this)) KeyboardMetrics.landscapeWidthPx(this)
+                   else ViewGroup.LayoutParams.MATCH_PARENT
         // Only touch layoutParams when something actually changed (avoids a relayout loop).
-        if (lp.width != newW || lp.height != newH) {
+        if (lp.width != newW || lp.height != ViewGroup.LayoutParams.WRAP_CONTENT ||
+            lp.gravity != (Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)) {
             lp.width = newW
-            lp.height = newH
+            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             rootContainer.layoutParams = lp
         }
-        if (rootContainer.translationX != tx) rootContainer.translationX = tx
-        if (rootContainer.translationY != ty) rootContainer.translationY = ty
-        rootContainer.clipChildren = false
-        (rootContainer.parent as? ViewGroup)?.clipChildren = false
+        rootContainer.translationX = 0f
+        rootContainer.translationY = 0f
     }
 
     override fun onDestroy() {

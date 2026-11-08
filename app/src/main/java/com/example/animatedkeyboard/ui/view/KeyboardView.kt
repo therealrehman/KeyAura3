@@ -289,9 +289,7 @@ class KeyboardView @JvmOverloads constructor(
     private val topBottomMarginDp = 4f
     private val keyCornerRadiusDp = 5f
 
-    // FIX: Landscape - fixed height fraction, never expand
-    private val keyboardHeightFraction = 0.35f
-    private val landscapeHeightFraction = 0.30f
+    // Keyboard height now comes from KeyboardMetrics (shared with the panels and the IME window).
     private val spaceRowHeightFactor = 1.0f // FIX: Space row same height as others
 
     private val keyPaint = Paint()
@@ -429,16 +427,10 @@ class KeyboardView @JvmOverloads constructor(
         refreshTheme()
     }
 
-    // FIX: Landscape - use fixed height, never expand to fullscreen
+    // Height from KeyboardMetrics: portrait size in both orientations (capped in landscape), never fullscreen.
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = View.MeasureSpec.getSize(widthMeasureSpec)
-        val dm = context.resources.displayMetrics
-        val isLandscape = dm.widthPixels > dm.heightPixels
-        val desiredHeight = if (isLandscape) {
-            (dm.heightPixels * landscapeHeightFraction).toInt()
-        } else {
-            (dm.heightPixels * keyboardHeightFraction).toInt()
-        }
+        val desiredHeight = KeyboardMetrics.heightPx(context)
         super.onMeasure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(desiredHeight, View.MeasureSpec.EXACTLY)
