@@ -395,8 +395,11 @@ class AnimatedKeyboardIME : InputMethodService() {
             // Use the REAL width of the window the keyboard sits in, not the screen metrics.
             val parentW = (rootContainer.parent as? View)?.width?.takeIf { it > 0 } ?: longSide
             tx = maxOf(0f, (parentW - newW) / 2f)
-            val parentH = (rootContainer.parent as? View)?.height?.takeIf { it > 0 } ?: shortSide
-            ty = maxOf(0f, (parentH - newH).toFloat())   // pinned to the bottom edge
+            // The real height of the IME window (the parent view is sized to the keyboard, so it cannot tell us).
+            val windowH = window?.window?.decorView?.height?.takeIf { it > 0 }
+                ?: (rootContainer.parent as? View)?.height?.takeIf { it > 0 }
+                ?: shortSide
+            ty = maxOf(0f, (windowH - newH).toFloat())   // pinned to the bottom edge of the window
         } else {
             newH = ViewGroup.LayoutParams.WRAP_CONTENT
             newW = ViewGroup.LayoutParams.MATCH_PARENT
