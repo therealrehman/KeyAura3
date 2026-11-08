@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.Shader
@@ -77,6 +78,12 @@ class BirdyBirdCanvas @JvmOverloads constructor(
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = true
     }
     private val iconButtonPaint = Paint().apply { color = Color.parseColor("#141414"); isAntiAlias = true }
+    private val frameStrokePaint = Paint().apply { style = Paint.Style.STROKE; strokeWidth = dp(3f); isAntiAlias = true }
+    private val groundPaint = Paint().apply { isAntiAlias = true }
+    private val grassPaint = Paint().apply { color = Color.parseColor("#3CCB6B"); isAntiAlias = true }
+    private val cloudPaint = Paint().apply { color = Color.parseColor("#1A2350"); isAntiAlias = true }
+    private val starPaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
+    private val rivetPaint = Paint().apply { color = Color.parseColor("#4488FF"); isAntiAlias = true }
     private val backBtnPaint = Paint().apply { color = Color.parseColor("#1E2A4A"); isAntiAlias = true }
     private val backBtnBorderPaint = Paint().apply {
         color = Color.parseColor("#4488FF"); style = Paint.Style.STROKE; strokeWidth = dp(1f); isAntiAlias = true
@@ -150,12 +157,58 @@ class BirdyBirdCanvas @JvmOverloads constructor(
         }
 
         drawBackground(canvas)
+        drawFrame(canvas)
         drawPipes(canvas)
         drawBird(canvas)
         drawHud(canvas)
         drawBackButton(canvas)
 
         if (isRunning) postInvalidateOnAnimation()
+    }
+
+    /** Game framing: gradient border, corner rivets, stars, clouds and a grassy ground strip. */
+    private fun drawFrame(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+
+        // stars
+        for (i in 0 until 22) {
+            val x = ((i * 97) % 100) / 100f * w
+            val y = ((i * 53) % 55) / 100f * h
+            starPaint.alpha = 70 + (i % 4) * 45
+            canvas.drawCircle(x, y, dp(0.7f + (i % 3) * 0.45f), starPaint)
+        }
+
+        // clouds
+        cloudPaint.alpha = 255
+        for ((fx, fy, s) in listOf(Triple(0.18f, 0.22f, 1.0f), Triple(0.72f, 0.36f, 0.8f), Triple(0.46f, 0.12f, 0.6f))) {
+            val cx = fx * w
+            val cy = fy * h
+            val rx = dp(40f) * s
+            val ry = dp(14f) * s
+            canvas.drawOval(cx - rx, cy - ry, cx + rx, cy + ry, cloudPaint)
+            canvas.drawOval(cx - rx * 0.55f, cy - ry * 1.5f, cx + rx * 0.35f, cy + ry * 0.4f, cloudPaint)
+        }
+
+        // ground strip with a grass line on top
+        val groundTop = h * 0.86f
+        groundPaint.shader = LinearGradient(0f, groundTop, 0f, h,
+            Color.parseColor("#1B3D2F"), Color.parseColor("#0B1F17"), Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, groundTop, w, h, groundPaint)
+        canvas.drawRect(0f, groundTop, w, groundTop + dp(3f), grassPaint)
+
+        // gradient frame + corner rivets
+        val inset = dp(3f)
+        val rect = RectF(inset, inset, w - inset, h - inset)
+        frameStrokePaint.shader = LinearGradient(0f, 0f, w, h,
+            Color.parseColor("#4488FF"), Color.parseColor("#B05CFF"), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(rect, dp(14f), dp(14f), frameStrokePaint)
+        val r = dp(2.5f)
+        val p = dp(12f)
+        for ((x, y) in listOf(p to p, w - p to p, p to h - p, w - p to h - p)) {
+            canvas.drawCircle(x, y, r, rivetPaint)
+        }
     }
 
     private fun update(dt: Float) {

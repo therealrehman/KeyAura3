@@ -385,18 +385,23 @@ class AnimatedKeyboardIME : InputMethodService() {
         val newH: Int
         val newW: Int
         val tx: Float
+        val ty: Float
         if (landscape) {
             val saved = getSharedPreferences("keyaura_ime", android.content.Context.MODE_PRIVATE)
                 .getInt("kb_h_portrait", 0)
-            newH = if (saved > 0) saved else (longSide * 0.45f).toInt()
+            val portraitH = if (saved > 0) saved else (longSide * 0.45f).toInt()
+            newH = (portraitH * 0.5f).toInt()          // half the portrait height
             newW = shortSide
             // Use the REAL width of the window the keyboard sits in, not the screen metrics.
             val parentW = (rootContainer.parent as? View)?.width?.takeIf { it > 0 } ?: longSide
             tx = maxOf(0f, (parentW - newW) / 2f)
+            val parentH = (rootContainer.parent as? View)?.height?.takeIf { it > 0 } ?: shortSide
+            ty = maxOf(0f, (parentH - newH).toFloat())   // pinned to the bottom edge
         } else {
             newH = ViewGroup.LayoutParams.WRAP_CONTENT
             newW = ViewGroup.LayoutParams.MATCH_PARENT
             tx = 0f
+            ty = 0f
         }
 
         val lp = rootContainer.layoutParams ?: ViewGroup.LayoutParams(newW, newH)
@@ -407,6 +412,7 @@ class AnimatedKeyboardIME : InputMethodService() {
             rootContainer.layoutParams = lp
         }
         if (rootContainer.translationX != tx) rootContainer.translationX = tx
+        if (rootContainer.translationY != ty) rootContainer.translationY = ty
     }
 
     override fun onDestroy() {
