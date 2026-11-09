@@ -38,6 +38,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
 
-    // Start.io
-    implementation 'com.startapp:inapp-sdk:4.10.4'
+    // Petal Ads (Huawei Ads Kit). ads-prime = works on HMS AND non-HMS (Google Play) devices.
+    // ads-lite would only serve ads on devices that have HMS Core.
+    implementation 'com.huawei.hms:ads-prime:3.4.91.301'
 }

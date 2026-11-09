@@ -185,7 +185,7 @@ OKLabs ("we", "us", "our") built KeyAura as a free Android keyboard app. This Pr
 
 We believe privacy is a right, not a feature. KeyAura is designed from the ground up to process everything locally on your device.
 
-KeyAura is free and supported by ads. We use Start.io (StartApp) to display ads. You can unlock premium features (animated themes, swipe tunes, the mini-game) for 12 hours by watching a rewarded video ad, which is completely optional.
+KeyAura is free and supported by ads. We use Petal Ads (Huawei Ads Kit) to display ads. You can unlock premium features (animated themes, swipe tunes, the mini-game) for 12 hours by watching a rewarded video ad, which is completely optional.
         """.trimIndent(), ACCENT)
 
         sectionCard("✅ What We NEVER Do", """
@@ -227,11 +227,11 @@ VIBRATION
 For haptic feedback on key presses. No data involved.
 
 INTERNET
-INTERNET: Required for displaying ads via Start.io and for general app functionality. KeyAura itself makes no outbound connections to OKLabs servers. Ad network data is governed by Start.io's own privacy policy.
+INTERNET: Required for displaying ads via Petal Ads and for general app functionality. KeyAura itself makes no outbound connections to OKLabs servers. Ad network data is governed by Petal Ads' (Huawei's) own privacy policy.
         """.trimIndent(), WARNING)
 
         sectionCard("🔗 Third-Party Services", """
-Start.io (StartApp): KeyAura displays banner, interstitial and rewarded video ads powered by Start.io. Start.io may collect device identifiers, IP address, and ad interaction data to serve relevant ads. See Start.io's privacy policy on its official website.
+Petal Ads (Huawei Ads Kit): KeyAura displays banner, interstitial and rewarded video ads powered by Petal Ads. Petal Ads may collect device identifiers, IP address, and ad interaction data to serve relevant ads. See Huawei's privacy policy on its official website.
 
 A banner ad is shown at the top of the main screen. Rewarded video ads unlock animated themes, swipe tunes, and the mini-game for 12 hours each. You must watch the full video to get the unlock. Interstitial ads appear when you change a theme or tune while it is already unlocked.
 

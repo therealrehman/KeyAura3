@@ -10,6 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Petal Ads / Huawei Ads Kit SDK
+        maven { url 'https://developer.huawei.com/repo/' }
     }
 }
 rootProject.name = "KeyAura"

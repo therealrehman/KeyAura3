@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
         ads.attachBanner(this, findViewById(R.id.bannerContainer))
         askAdsConsentIfNeeded()
 
-        // Initialize Start.io ads
+        // Initialize Petal Ads
         ads.initialize(this)
 
         // First install setup guide

@@ -31,12 +31,12 @@ Fun
 Free to use
 - All typing features are free
 - Some animated themes, swipe tunes and the mini-game unlock for 12 hours after you watch a short rewarded video ad. If no video is available, a 1-hour unlock is given while you are online.
-- A banner ad is shown on the main screen. Ads are shown by Start.io (StartApp).
+- A banner ad is shown on the main screen. Ads are shown by Petal Ads (Huawei Ads Kit).
 - You choose whether ads are personalized the first time you open the app.
 
 Privacy
 - KeyAura does not store what you type or send it anywhere. Typing is handled on your device.
-- Ads are shown by Start.io, which may collect device identifiers and ad interaction data. See the privacy policy in the app (About > Privacy).
+- Ads are shown by Petal Ads, which may collect device identifiers and ad interaction data. See the privacy policy in the app (About > Privacy).
 
 ## New features (max 1000)
 - Animated themes with per-key colour bursts
@@ -76,7 +76,7 @@ Do not show any text that says "no ads".
 ## Before you press Submit
 - [ ] Package name is com.oklabs.keyaura on the AppGallery app (matches build.gradle)
 - [ ] Signing key: the same key you use in GitHub secrets (SHA-256 added to AppGallery Connect)
-- [ ] agconnect-services.json in app/ if Huawei Ads Kit is used
+- [ ] Petal Ads: app ID and the 3 ad unit IDs are in ads/AdMobManager.kt (not agconnect-services.json; the app initialises with the app ID)
 - [ ] Privacy policy URL live and matches the app text
 - [ ] Listing does not say "no ads"
 - [ ] "Zero keystroke logging" claim verified (see note below)

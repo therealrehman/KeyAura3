@@ -12,15 +12,22 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
-import com.startapp.sdk.ads.banner.Banner
-import com.startapp.sdk.adsbase.StartAppAd
-import com.startapp.sdk.adsbase.StartAppSDK
-import com.startapp.sdk.adsbase.adlisteners.AdDisplayListener
-import com.startapp.sdk.adsbase.adlisteners.AdEventListener
-import com.startapp.sdk.adsbase.adlisteners.VideoListener
+import android.view.Gravity
+import com.huawei.hms.ads.AdListener
+import com.huawei.hms.ads.AdParam
+import com.huawei.hms.ads.BannerAdSize
+import com.huawei.hms.ads.HwAds
+import com.huawei.hms.ads.InterstitialAd
+import com.huawei.hms.ads.NonPersonalizedAd
+import com.huawei.hms.ads.banner.BannerView
+import com.huawei.hms.ads.reward.Reward
+import com.huawei.hms.ads.reward.RewardAd
+import com.huawei.hms.ads.reward.RewardAdLoadListener
+import com.huawei.hms.ads.reward.RewardAdStatusListener
 
 /**
- * Start.io ads (StartApp SDK). Class name kept as AdMobManager so other files need no change.
+ * Petal Ads (Huawei Ads Kit, ads-prime build so it also serves on Google Play / non-HMS devices).
+ * Class name kept as AdMobManager so other files need no change.
  *
  *  • Animated themes, swipe tunes and the mini-game are locked on first install.
  *  • Tap a locked item:
@@ -36,16 +43,23 @@ class AdMobManager private constructor(private val appContext: Context) {
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("keyaura_admob_prefs", Context.MODE_PRIVATE)
 
-    private var interstitialAd: StartAppAd? = null
+    private var initialized = false
+    private var interstitialAd: InterstitialAd? = null
     private var interstitialLoading = false
-    private var rewardedAd: StartAppAd? = null
+    private var interstitialOnClosed: (() -> Unit)? = null
+    private var rewardedAd: RewardAd? = null
     private var rewardedLoading = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var requestPending = false   // one unlock request at a time
 
     companion object {
         private const val TAG = "KeyAuraAds"
-        private const val APP_ID = "207210854"
+
+        // ── Petal Ads (Petal Publisher Center) ───────────────────────────────
+        private const val PETAL_APP_ID = "119728959"
+        private const val BANNER_AD_UNIT_ID       = "e4m505w0jj"
+        private const val REWARDED_AD_UNIT_ID     = "l52xitj2ct"
+        private const val INTERSTITIAL_AD_UNIT_ID = "m4owdn4mhy"
 
         const val UNLOCK_DURATION_MS = 12L * 60 * 60 * 1000   // full rewarded video
         const val FALLBACK_DURATION_MS = 1L * 60 * 60 * 1000  // no ad could be filled
@@ -98,11 +112,24 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     // ── Initialization ───────────────────────────────────────────────────────
 
+    /** Safe to call many times: the Petal Ads SDK is initialised once. */
+    @Synchronized
+    private fun ensureInit(context: Context) {
+        if (initialized) return
+        Log.d(TAG, "Initializing Petal Ads SDK")
+        try {
+            HwAds.init(context.applicationContext, PETAL_APP_ID)
+            initialized = true
+            // Until the user answers the ads-consent question, ads are NON-personalized.
+            applyConsent(storedConsent() ?: false)
+        } catch (e: Exception) {
+            Log.e(TAG, "Petal Ads init failed", e)
+        }
+    }
+
     fun initialize(context: Context) {
-        Log.d(TAG, "Initializing Start.io SDK")
-        StartAppSDK.init(context, APP_ID, false)
-        // Until the user answers the ads-consent question, ads are NON-personalized.
-        applyConsent(context, storedConsent() ?: false)
+        ensureInit(context)
+        if (!initialized) return
         loadInterstitial()
         loadRewarded()
     }
@@ -123,25 +150,52 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     fun saveConsent(context: Context, personalized: Boolean) {
         prefs.edit().putBoolean(KEY_CONSENT, personalized).apply()
-        applyConsent(context, personalized)
+        ensureInit(context)
+        applyConsent(personalized)
     }
 
-    private fun applyConsent(context: Context, personalized: Boolean) {
-        StartAppSDK.setUserConsent(context, "pas", System.currentTimeMillis(), personalized)
+    private fun applyConsent(personalized: Boolean) {
+        try {
+            val options = HwAds.getRequestOptions().toBuilder()
+                .setNonPersonalizedAd(
+                    if (personalized) NonPersonalizedAd.ALLOW_ALL else NonPersonalizedAd.ALLOW_NON_PERSONALIZED
+                )
+                .build()
+            HwAds.setRequestOptions(options)
+        } catch (e: Exception) {
+            Log.e(TAG, "Applying ad consent failed", e)
+        }
     }
 
     // ── Banner ───────────────────────────────────────────────────────────────
 
-    /** Adds a Start.io banner into [container]. The container stays hidden if the banner fails. */
+    /** Adds a Petal Ads banner into [container]. The container is hidden again if the banner fails. */
     fun attachBanner(activity: Activity, container: ViewGroup) {
         try {
+            ensureInit(activity)
             container.removeAllViews()
-            val banner = Banner(activity)
+            val banner = BannerView(activity)
+            banner.setAdId(BANNER_AD_UNIT_ID)
+            banner.setBannerAdSize(BannerAdSize.BANNER_SIZE_320_50)
+            banner.setAdListener(object : AdListener() {
+                override fun onAdLoaded() {
+                    Log.d(TAG, "Banner loaded")
+                    container.visibility = View.VISIBLE
+                }
+                override fun onAdFailed(errorCode: Int) {
+                    Log.e(TAG, "Banner failed, error=$errorCode")
+                    container.visibility = View.GONE
+                }
+            })
             container.addView(
                 banner,
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER_HORIZONTAL
+                )
             )
             container.visibility = View.VISIBLE
+            banner.loadAd(AdParam.Builder().build())
         } catch (e: Exception) {
             Log.e(TAG, "Banner failed", e)
             container.visibility = View.GONE
@@ -151,17 +205,18 @@ class AdMobManager private constructor(private val appContext: Context) {
     // ── Rewarded (unlock) ────────────────────────────────────────────────────
 
     private fun loadRewarded() {
-        if (rewardedLoading || rewardedAd != null) return
+        if (!initialized) return
+        if (rewardedLoading || rewardedAd?.isLoaded == true) return
         rewardedLoading = true
-        val ad = StartAppAd(appContext)
-        ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
-            override fun onReceiveAd(a: com.startapp.sdk.adsbase.Ad) {
+        val ad = RewardAd(appContext, REWARDED_AD_UNIT_ID)
+        ad.loadAd(AdParam.Builder().build(), object : RewardAdLoadListener() {
+            override fun onRewardedLoaded() {
                 Log.d(TAG, "Rewarded loaded")
                 rewardedAd = ad
                 rewardedLoading = false
             }
-            override fun onFailedToReceiveAd(a: com.startapp.sdk.adsbase.Ad?) {
-                Log.e(TAG, "Rewarded load failed (no fill?) - retry in 15s")
+            override fun onRewardAdFailedToLoad(errorCode: Int) {
+                Log.e(TAG, "Rewarded load failed, error=$errorCode (no fill?) - retry in 15s")
                 rewardedAd = null
                 rewardedLoading = false
                 mainHandler.postDelayed({ loadRewarded() }, 15_000L)
@@ -201,15 +256,13 @@ class AdMobManager private constructor(private val appContext: Context) {
     }
 
     private fun showRewarded(
-        activity: Activity, ad: StartAppAd, type: RewardType, onComplete: () -> Unit
+        activity: Activity, ad: RewardAd, type: RewardType, onComplete: () -> Unit
     ) {
         rewardedAd = null
         var completed = false
-        ad.setVideoListener(object : VideoListener {
-            override fun onVideoCompleted() { completed = true }
-        })
-        ad.showAd(object : AdDisplayListener {
-            override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
+        ad.show(activity, object : RewardAdStatusListener() {
+            override fun onRewarded(reward: Reward) { completed = true }
+            override fun onRewardAdClosed() {
                 loadRewarded()
                 if (completed) {
                     grantUnlock(type, UNLOCK_DURATION_MS)
@@ -219,9 +272,8 @@ class AdMobManager private constructor(private val appContext: Context) {
                     toast(activity, "Poori video dekhne par 12 ghante ka unlock milega.")
                 }
             }
-            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adClicked(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adNotDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
+            override fun onRewardAdFailedToShow(errorCode: Int) {
+                Log.e(TAG, "Rewarded failed to show, error=$errorCode")
                 loadRewarded()
                 fallbackUnlock(activity, type, onComplete)
             }
@@ -232,29 +284,19 @@ class AdMobManager private constructor(private val appContext: Context) {
     private fun fallbackUnlock(activity: Activity, type: RewardType, onComplete: () -> Unit) {
         if (!isOnline()) { requestPending = false; showNoInternet(activity); return }
         val ia = interstitialAd
-        if (ia == null) {
+        if (ia == null || !ia.isLoaded) {
             loadInterstitial()
             grantUnlock(type, FALLBACK_DURATION_MS)
             toast(activity, "Ad abhi available nahi. 1 ghante ke liye unlock hua.")
             activity.runOnUiThread { onComplete() }
             return
         }
-        interstitialAd = null
-        ia.showAd(object : AdDisplayListener {
-            override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
-                loadInterstitial()
-                grantUnlock(type, FALLBACK_DURATION_MS)
-                toast(activity, "1 ghante ke liye unlock hua.")
-                activity.runOnUiThread { onComplete() }
-            }
-            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adClicked(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adNotDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
-                loadInterstitial()
-                grantUnlock(type, FALLBACK_DURATION_MS)
-                activity.runOnUiThread { onComplete() }
-            }
-        })
+        interstitialOnClosed = {
+            grantUnlock(type, FALLBACK_DURATION_MS)
+            toast(activity, "1 ghante ke liye unlock hua.")
+            activity.runOnUiThread { onComplete() }
+        }
+        ia.show(activity)
     }
 
     private fun showNoInternet(activity: Activity) {
@@ -269,44 +311,48 @@ class AdMobManager private constructor(private val appContext: Context) {
 
     // ── Interstitial (theme / tune change while unlocked; not a reward) ──────
 
-    private fun loadInterstitial() {
-        if (interstitialLoading) return
-        interstitialLoading = true
-        val ad = StartAppAd(appContext)
-        ad.loadAd(StartAppAd.AdMode.AUTOMATIC, object : AdEventListener {
-            override fun onReceiveAd(a: com.startapp.sdk.adsbase.Ad) {
-                interstitialAd = ad
+    private fun interstitial(): InterstitialAd {
+        interstitialAd?.let { return it }
+        val ad = InterstitialAd(appContext)
+        ad.setAdId(INTERSTITIAL_AD_UNIT_ID)
+        ad.setAdListener(object : AdListener() {
+            override fun onAdLoaded() {
+                Log.d(TAG, "Interstitial loaded")
                 interstitialLoading = false
             }
-            override fun onFailedToReceiveAd(a: com.startapp.sdk.adsbase.Ad?) {
-                interstitialAd = null
+            override fun onAdFailed(errorCode: Int) {
+                Log.e(TAG, "Interstitial load failed, error=$errorCode")
                 interstitialLoading = false
+            }
+            override fun onAdClosed() {
+                val next = interstitialOnClosed
+                interstitialOnClosed = null
+                loadInterstitial()
+                next?.invoke()
             }
         })
+        interstitialAd = ad
+        return ad
+    }
+
+    private fun loadInterstitial() {
+        if (!initialized) return
+        val ad = interstitial()
+        if (interstitialLoading || ad.isLoaded) return
+        interstitialLoading = true
+        ad.loadAd(AdParam.Builder().build())
     }
 
     /** Shows an interstitial, then runs [onComplete]. If no ad is ready, runs [onComplete] straight away. */
     fun showInterstitialThen(activity: Activity, onComplete: () -> Unit) {
         val ad = interstitialAd
-        if (ad == null) {
+        if (ad == null || !ad.isLoaded) {
             loadInterstitial()
             activity.runOnUiThread { onComplete() }
             return
         }
-        ad.showAd(object : AdDisplayListener {
-            override fun adHidden(a: com.startapp.sdk.adsbase.Ad?) {
-                interstitialAd = null
-                loadInterstitial()
-                activity.runOnUiThread { onComplete() }
-            }
-            override fun adDisplayed(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adClicked(a: com.startapp.sdk.adsbase.Ad?) {}
-            override fun adNotDisplayed(a: com.startapp.sdk.adsbase.Ad?) {
-                interstitialAd = null
-                loadInterstitial()
-                activity.runOnUiThread { onComplete() }
-            }
-        })
+        interstitialOnClosed = { activity.runOnUiThread { onComplete() } }
+        ad.show(activity)
     }
 
     private fun toast(activity: Activity, msg: String) {
