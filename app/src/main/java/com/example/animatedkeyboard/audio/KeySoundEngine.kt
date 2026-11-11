@@ -62,7 +62,26 @@ class KeySoundEngine(context: Context) {
         }
     }
 
+    // Melody mode: every key press plays the NEXT note of a 16-step pattern (notes of the
+    // selected swipe tune). Typing fast makes a tune; when the pattern ends it starts again.
+    private val melodyPattern = intArrayOf(0, 2, 4, 5, 4, 2, 0, 2, 4, 7, 5, 4, 2, 4, 2, 0)
+    private var melodyStep = 0
+
     fun playClick() {
+        if (noteCount > 0) {
+            val idx = melodyPattern[melodyStep % melodyPattern.size] % noteCount
+            melodyStep++
+            if (noteLoaded[idx]) {
+                try {
+                    val vol = settings.keyVolume
+                    soundPool.play(noteSoundIds[idx], vol, vol, 1, 0, 1.0f)
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not play melody note: ${e.message}")
+                }
+            }
+        }
+        // fallback: plain click while the notes are still loading
         if (!isClickLoaded || clickSoundId == 0) return
         try {
             val vol = settings.keyVolume
