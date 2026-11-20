@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F0C29"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KeyAura Studio"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Your typing, as living art. 100% on-device."
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp"
+            android:layout_marginBottom="12dp" />
+
+        <com.example.animatedkeyboard.aura.AuraOrbView
+            android:id="@+id/aura_orb"
+            android:layout_width="match_parent"
+            android:layout_height="170dp" />
+
+        <TextView
+            android:id="@+id/aura_stats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#CCFFFFFF"
+            android:textSize="13sp"
+            android:layout_marginTop="8dp" />
+
+        <ImageView
+            android:id="@+id/aura_art"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginTop="12dp"
+            android:scaleType="centerCrop"
+            android:contentDescription="Daily Aura Canvas" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <Button android:id="@+id/aura_save"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Share Canvas" />
+            <Button android:id="@+id/aura_new"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="New Canvas" />
+            <Button android:id="@+id/aura_refresh"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Refresh" />
+        </LinearLayout>
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Linguistic Alchemy" android:textColor="#FFFFFF"
+            android:textSize="18sp" android:textStyle="bold" android:layout_marginTop="18dp" />
+
+        <EditText android:id="@+id/aura_vibe_input"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Type a raw thought…" android:textColor="#FFFFFF"
+            android:textColorHint="#66FFFFFF" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button android:id="@+id/aura_vibe_pro" android:layout_width="0dp"
+                android:layout_height="wrap_content" android:layout_weight="1" android:text="Professional" />
+            <Button android:id="@+id/aura_vibe_fun" android:layout_width="0dp"
+                android:layout_height="wrap_content" android:layout_weight="1" android:text="Friendly" />
+            <Button android:id="@+id/aura_vibe_poet" android:layout_width="0dp"
+                android:layout_height="wrap_content" android:layout_weight="1" android:text="Poetic" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/aura_vibe_out"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#00E5FF" android:textSize="15sp"
+            android:layout_marginTop="6dp" android:minHeight="40dp" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Experience &amp; Accessibility" android:textColor="#FFFFFF"
+            android:textSize="18sp" android:textStyle="bold" android:layout_marginTop="18dp" />
+
+        <Switch android:id="@+id/aura_sw_sound" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Aura soundscape (TypeMusic)"
+            android:textColor="#FFFFFF" />
+        <Switch android:id="@+id/aura_sw_flow" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Flow Mode (distraction-free)"
+            android:textColor="#FFFFFF" />
+        <Switch android:id="@+id/aura_sw_onehand" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="One-hand mode"
+            android:textColor="#FFFFFF" />
+        <Switch android:id="@+id/aura_sw_big" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Larger key labels (accessibility)"
+            android:textColor="#FFFFFF" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:textColor="#88FFFFFF" android:textSize="12sp"
+            android:text="In any app: type /pro /fun /poet then Space to rewrite your sentence. Type /aura then Space to open this Studio. Nothing leaves your device." />
+    </LinearLayout>
+</ScrollView>
