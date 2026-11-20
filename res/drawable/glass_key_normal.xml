@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <!-- 15% White for Frosted Glass effect -->
+    <solid android:color="#26FFFFFF" /> 
+    <!-- Subtle top-left to bottom-right border for 3D depth -->
+    <stroke android:width="1dp" android:color="#33FFFFFF" />
+    <corners android:radius="14dp" />
+</shape>
