@@ -28,6 +28,11 @@ import com.example.animatedkeyboard.ui.view.EmojiSearchStripView
 import com.example.animatedkeyboard.ui.view.GamePanelView
 import com.example.animatedkeyboard.ui.view.KeyboardMetrics
 import com.example.animatedkeyboard.ui.view.KeyboardView
+import com.example.animatedkeyboard.aura.AuraAlchemy
+import com.example.animatedkeyboard.aura.AuraContext
+import com.example.animatedkeyboard.aura.AuraEngine
+import com.example.animatedkeyboard.aura.AuraPrefs
+import com.example.animatedkeyboard.aura.AuraStudioActivity
 
 class AnimatedKeyboardIME : InputMethodService() {
 
@@ -38,34 +43,37 @@ class AnimatedKeyboardIME : InputMethodService() {
     private lateinit var clipboardPanelView: ClipboardPanelView
     private lateinit var gamePanelView: GamePanelView
     private lateinit var emojiSearchStrip: EmojiSearchStripView
-    private var currentInputEditorInfo: EditorInfo? = null
 
+    private var currentInputEditorInfo: EditorInfo? = null
     private val clipboardRepo by lazy { ClipboardRepository.getInstance(this) }
     private val emojiRepo by lazy { EmojiRepository.getInstance(this) }
     private var clipboardManager: ClipboardManager? = null
     private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     private var isFirstClipCallback = true
-
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
 
-    // Emoji search state — main keyboard keystrokes search me route hote hain
     private var emojiSearchActive = false
     private val emojiSearchQuery = StringBuilder()
     private var stripHeightPx = 0
 
+    private val auraPrefs by lazy { AuraPrefs.getInstance(this) }
+    private val auraEngine by lazy {
+        AuraEngine(this, auraPrefs) {
+            com.example.animatedkeyboard.settings.KeyboardSettings.getInstance(this).soundEnabled
+        }
+    }
+    private val auraBuffer = StringBuilder()
+
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onCreateInputView(): View {
-        // The framework gives the view we return MATCH_PARENT x WRAP_CONTENT, so we return a plain
-        // full-width wrapper and put the real keyboard (rootContainer) inside it. In landscape the
-        // keyboard is a portrait-width block centred by gravity: no translation hacks, so the window
-        // height, the insets and what you see on screen all stay in sync (nothing floating or clipped).
         inputWrapper = FrameLayout(this)
         rootContainer = FrameLayout(this)
         inputWrapper.addView(rootContainer, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+
         stripHeightPx = (52 * resources.displayMetrics.density).toInt()
         applyKeyboardSize()
 
@@ -74,8 +82,10 @@ class AnimatedKeyboardIME : InputMethodService() {
 
         keyboardView = KeyboardView(this)
         keyboardView.setBackgroundColor(0x00000000)
+        keyboardView.auraEngine = auraEngine
         keyboardView.setOnCustomKeyListener(object : KeyboardView.OnKeyListener {
             override fun onKey(code: Int, label: String) {
+                auraTrack(code, label)
                 if (emojiSearchActive) { routeEmojiSearchKey(code, label); return }
                 val ic = currentInputConnection ?: return
                 when (code) {
@@ -103,9 +113,6 @@ class AnimatedKeyboardIME : InputMethodService() {
                         startActivity(intent)
                     }
                     -16 -> {
-                        // "Watch Ad · Unlock Themes" chip tapped from inside the keyboard.
-                        // We can't show a rewarded ad from the IME service (needs Activity context),
-                        // so we open MainActivity which auto-shows the rewarded ad dialog.
                         val intent = Intent().apply {
                             setClassName(packageName, "com.example.animatedkeyboard.MainActivity")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -114,7 +121,7 @@ class AnimatedKeyboardIME : InputMethodService() {
                         startActivity(intent)
                     }
                     else -> {
-                        if (label == "Space") ic.commitText(" ", 1)
+                        if (label == "Space") { auraWordBoundary(); ic.commitText(" ", 1) }
                         else ic.commitText(label, 1)
                     }
                 }
@@ -147,7 +154,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         })
         gamePanelView.visibility = View.GONE
 
-        // Search strip — keyboard ke bilkul upar
         emojiSearchStrip = EmojiSearchStripView(this)
         emojiSearchStrip.onEmojiTapped = { entry ->
             emojiRepo.recordUsage(entry)
@@ -166,7 +172,38 @@ class AnimatedKeyboardIME : InputMethodService() {
         return inputWrapper
     }
 
-    // ---------- Emoji search via main keyboard ----------
+    private fun auraTrack(code: Int, label: String) {
+        if (emojiSearchActive) return
+        when {
+            code == -5 -> if (auraBuffer.isNotEmpty()) auraBuffer.deleteCharAt(auraBuffer.length - 1)
+            code > 0 && label.length == 1 -> auraBuffer.append(label)
+            code == 32 -> {}
+            else -> auraBuffer.clear()
+        }
+        if (auraBuffer.length > 400) auraBuffer.delete(0, auraBuffer.length - 400)
+    }
+
+    private fun auraWordBoundary() {
+        val text = auraBuffer.toString()
+        val idx = text.lastIndexOf(' ')
+        val token = if (idx >= 0) text.substring(idx + 1) else text
+        val ic = currentInputConnection ?: return
+        if (AuraAlchemy.isTrigger(token)) {
+            ic.deleteSurroundingText(token.length, 0)
+            if (token == "/aura") {
+                startActivity(Intent(this, AuraStudioActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } else {
+                val sentence = (if (idx >= 0) text.substring(0, idx) else "").trim()
+                if (sentence.isNotEmpty()) {
+                    ic.deleteSurroundingText(sentence.length + 1, 0)
+                    ic.commitText(AuraAlchemy.shift(sentence, token), 1)
+                }
+            }
+        }
+        auraBuffer.clear()
+    }
+
     private fun enterEmojiSearch() {
         emojiSearchActive = true
         emojiSearchQuery.clear()
@@ -205,7 +242,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         emojiSearchStrip.setQuery(emojiSearchQuery.toString())
     }
 
-    // ---------- Clipboard (ASYNC — no hang) ----------
     private fun registerClipboardListener() {
         if (clipListener != null) return
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -228,7 +264,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         } else {
             val text = item.coerceToText(this)?.toString()
             if (!text.isNullOrBlank()) {
-                // FIX: Background thread par save + suggestion sirf preview ke saath
                 clipboardRepo.addText(text) { entry ->
                     if (::keyboardView.isInitialized) keyboardView.showClipboardSuggestion(entry.content)
                 }
@@ -254,7 +289,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         }
     }
 
-    // ---------- Speech ----------
     private fun toggleSpeechRecognition() {
         if (isListening) { stopSpeechRecognition(); return }
         val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
@@ -301,7 +335,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (::keyboardView.isInitialized) keyboardView.setListeningState(false)
     }
 
-    // ---------- Panels ----------
     private fun showEmojiPanel() {
         exitEmojiSearch()
         keyboardView.visibility = View.GONE
@@ -323,13 +356,12 @@ class AnimatedKeyboardIME : InputMethodService() {
     }
 
     private fun showGamePanel() {
-
         val adsManager = AdMobManager.getInstance(this)
         if (!adsManager.isUnlocked(AdMobManager.RewardType.GAME)) {
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 this,
                 "🔒 Game locked — open KeyAura app to unlock for 12h 🎮",
-                android.widget.Toast.LENGTH_LONG
+                Toast.LENGTH_LONG
             ).show()
             return
         }
@@ -362,6 +394,9 @@ class AnimatedKeyboardIME : InputMethodService() {
             keyboardView.refreshSoundEngineTune()
             keyboardView.refreshTheme()
             keyboardView.setImeAction(resolveEditorAction(info))
+            val cat = AuraContext.categorize(info?.packageName)
+            auraEngine.category = cat
+            keyboardView.setAuraContext(cat)
         }
         exitEmojiSearch()
         applyKeyboardSize()
@@ -374,10 +409,6 @@ class AnimatedKeyboardIME : InputMethodService() {
         relayoutAllViews()
     }
 
-    /**
-     * The keys and every panel size themselves from [KeyboardMetrics] (not from the parent's
-     * measure spec), so after a rotation each one has to be asked to measure again explicitly.
-     */
     private fun relayoutAllViews() {
         if (::keyboardView.isInitialized) { keyboardView.requestLayout(); keyboardView.invalidate() }
         if (::emojiPanelView.isInitialized) emojiPanelView.requestLayout()
@@ -386,24 +417,23 @@ class AnimatedKeyboardIME : InputMethodService() {
         if (::rootContainer.isInitialized) rootContainer.requestLayout()
     }
 
-    /**
-     * Portrait: full width, bottom aligned.
-     * Landscape: portrait-width block, centred, bottom aligned. Height is always WRAP_CONTENT because
-     * the keyboard and panels measure themselves to [KeyboardMetrics.heightPx], so the IME window ends
-     * up exactly keyboard-tall (apps resize correctly, no empty band above or below the keys).
-     */
     private fun applyKeyboardSize() {
         if (!::rootContainer.isInitialized) return
         val lp = rootContainer.layoutParams as? FrameLayout.LayoutParams
             ?: FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        val newW = if (KeyboardMetrics.isLandscape(this)) KeyboardMetrics.landscapeWidthPx(this)
-                   else ViewGroup.LayoutParams.MATCH_PARENT
-        // Only touch layoutParams when something actually changed (avoids a relayout loop).
-        if (lp.width != newW || lp.height != ViewGroup.LayoutParams.WRAP_CONTENT ||
-            lp.gravity != (Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)) {
+
+        val newW = when {
+            auraPrefs.oneHand -> (resources.displayMetrics.widthPixels * 0.78f).toInt()
+            KeyboardMetrics.isLandscape(this) -> KeyboardMetrics.landscapeWidthPx(this)
+            else -> ViewGroup.LayoutParams.MATCH_PARENT
+        }
+        val grav = if (auraPrefs.oneHand) (Gravity.BOTTOM or Gravity.END)
+                   else (Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+
+        if (lp.width != newW || lp.height != ViewGroup.LayoutParams.WRAP_CONTENT || lp.gravity != grav) {
             lp.width = newW
             lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
-            lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            lp.gravity = grav
             rootContainer.layoutParams = lp
         }
         rootContainer.translationX = 0f
@@ -413,6 +443,7 @@ class AnimatedKeyboardIME : InputMethodService() {
     override fun onDestroy() {
         super.onDestroy()
         if (::keyboardView.isInitialized) keyboardView.release()
+        auraEngine.release()
         clipListener?.let { clipboardManager?.removePrimaryClipChangedListener(it) }
         speechRecognizer?.destroy()
     }
