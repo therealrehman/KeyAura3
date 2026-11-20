@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity=".MainActivity"
-    android:icon="@mipmap/ic_launcher">
+    android:settingsActivity="com.example.animatedkeyboard.MainActivity">
+
     <subtype
-        android:label="@string/keyboard_name"
+        android:label="@string/app_name"
         android:imeSubtypeLocale="en_US"
-        android:imeSubtypeMode="keyboard" />
+        android:imeSubtypeMode="keyboard"
+        android:isAuxiliary="false" />
+
+    <subtype
+        android:label="@string/app_name"
+        android:imeSubtypeLocale="ur_PK"
+        android:imeSubtypeMode="keyboard"
+        android:isAuxiliary="false" />
 </input-method>
