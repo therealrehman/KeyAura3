@@ -330,7 +330,7 @@ class KeyboardView @JvmOverloads constructor(
         listOf("!", "؍", "؛", "٪", "؞", "۔", "،", "(", ")", "؟"),
         listOf("ؤ", "ئ", "آ", "ٹ", "ڈ", "خ", "ص", "ض", "ژ", "غ"),
         listOf("ث", "ذ", "ظ", "ڑ", "ں", "ّ", "ٰ", "أ", "إ"),
-        listOf("Shift", "ـ", "ٓ", "", "٫", "", "؁", "", "Del"),
+        listOf("Shift", "ـ", "ٓ", "٬", "٫", "؀", "", "؂", "Del"),
         listOf("ABC", "123", "Emoji", "Space", "۔", "Go")
     )
 
