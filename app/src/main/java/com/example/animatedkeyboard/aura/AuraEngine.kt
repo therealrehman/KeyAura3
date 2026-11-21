@@ -3,7 +3,6 @@ package com.example.animatedkeyboard.aura
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
@@ -29,17 +28,16 @@ data class AuraDNA(
     val keys: Long = 0L
 )
 
-/**
- * Typing DNA + mood + procedural pentatonic soundscape.
- * No audio assets required: notes are synthesized into AudioTrack static buffers.
- * No coroutines required: decay runs on a main-looper Handler.
- */
 class AuraEngine(
     context: Context,
     private val prefs: AuraPrefs,
     private val soundAllowed: () -> Boolean
 ) {
     interface Listener { fun onDNA(dna: AuraDNA) }
+
+    companion object {
+        @Volatile var sharedDNA: AuraDNA = AuraDNA()
+    }
 
     private val listeners = mutableListOf<Listener>()
     fun addListener(l: Listener) { listeners.add(l) }
@@ -54,9 +52,7 @@ class AuraEngine(
     private var lastKeyAt = 0L
     private var noteIndex = 0
     private val handler = Handler(Looper.getMainLooper())
-    private val appContext = context.applicationContext
 
-    // ---- procedural pentatonic synth (C D E G A) ----
     private val sampleRate = 22050
     private val freqs = doubleArrayOf(261.63, 293.66, 329.63, 392.00, 440.00)
     private val tracks = arrayOfNulls<AudioTrack>(freqs.size)
@@ -84,7 +80,7 @@ class AuraEngine(
                 t.write(buf, 0, buf.size)
                 tracks[i] = t
             }
-        } catch (_: Exception) { /* audio unavailable: silent fallback */ }
+        } catch (_: Exception) { }
     }
 
     private fun synthNote(freq: Double): ByteArray {
@@ -114,7 +110,7 @@ class AuraEngine(
         analyze(isChar)
         if (isChar) playNote()
         scheduleDecay()
-        notifyListeners()
+        publish()
     }
 
     private fun analyze(countKey: Boolean) {
@@ -128,7 +124,6 @@ class AuraEngine(
         val cv = if (avg > 0) kotlin.math.sqrt(varr) / avg else 0.0
         val wpm = ((60000.0 / avg) * 5).toInt().coerceIn(0, 220)
         val burst = (1.0 - (avg / 420.0)).coerceIn(0.0, 1.0).toFloat()
-        val energy = burst
         val mood = when {
             avg < 105 && burst > 0.75f -> AuraMood.INTENSE
             avg < 160 -> AuraMood.EXCITED
@@ -136,7 +131,7 @@ class AuraEngine(
             cv < 0.38 -> AuraMood.FOCUSED
             else -> AuraMood.CALM
         }
-        dna = AuraDNA(wpm, cv.toFloat(), burst, energy, mood, keys)
+        dna = AuraDNA(wpm, cv.toFloat(), burst, burst, mood, keys)
     }
 
     private fun playNote() {
@@ -144,20 +139,19 @@ class AuraEngine(
         val t = tracks[noteIndex % tracks.size] ?: return
         noteIndex++
         try {
-            val vol = 0.25f + dna.burst * 0.45f
-            t.setVolume(vol)
-            t.playbackRate = (sampleRate * dna.mood.pitch).toInt()
-            t.stop()
+            if (t.playState != AudioTrack.PLAYSTATE_STOPPED) t.stop()
             t.reloadStaticData()
+            t.setVolume(0.25f + dna.burst * 0.45f)
+            t.playbackRate = (sampleRate * dna.mood.pitch).toInt()
             t.play()
-        } catch (_: Exception) {}
+        } catch (_: Exception) { }
     }
 
     private val decay = object : Runnable {
         override fun run() {
             if (dna.energy > 0.01f) {
                 dna = dna.copy(energy = (dna.energy - 0.04f).coerceAtLeast(0f))
-                notifyListeners()
+                publish()
                 handler.postDelayed(this, 120)
             }
         }
@@ -168,11 +162,14 @@ class AuraEngine(
         handler.postDelayed(decay, 350)
     }
 
-    private fun notifyListeners() { listeners.forEach { it.onDNA(dna) } }
+    private fun publish() {
+        sharedDNA = dna
+        listeners.forEach { it.onDNA(dna) }
+    }
 
     fun release() {
         handler.removeCallbacksAndMessages(null)
-        tracks.forEach { try { it?.release() } catch (_: Exception) {} }
+        tracks.forEach { try { it?.release() } catch (_: Exception) { } }
         listeners.clear()
     }
 }
