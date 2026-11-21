@@ -2,6 +2,8 @@ package com.example.animatedkeyboard.aura
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -11,22 +13,35 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.animatedkeyboard.R
 
-class AuraStudioActivity : AppCompatActivity(), AuraEngine.Listener {
+class AuraStudioActivity : AppCompatActivity() {
 
     private lateinit var prefs: AuraPrefs
-    private lateinit var engine: AuraEngine
     private lateinit var orb: AuraOrbView
     private lateinit var stats: TextView
     private lateinit var art: ImageView
     private lateinit var vibeInput: EditText
     private lateinit var vibeOut: TextView
 
+    private val handler = Handler(Looper.getMainLooper())
+    private val poll = object : Runnable {
+        override fun run() {
+            val d = AuraEngine.sharedDNA
+            orb.dna = d
+            stats.text = "Mood: ${d.mood.label}   ·   ${d.wpm} WPM   ·   rhythm ${(d.variance * 100).toInt()}%   ·   ${AuraArt.strokeCount()} strokes painted"
+            handler.postDelayed(this, 400)
+        }
+    }
+    private val artPoll = object : Runnable {
+        override fun run() {
+            art.setImageBitmap(AuraArt.snapshot())
+            handler.postDelayed(this, 2000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_aura_studio)
         prefs = AuraPrefs.getInstance(this)
-        engine = AuraEngine(this, prefs) { true }
-        engine.addListener(this)
 
         orb = findViewById(R.id.aura_orb)
         stats = findViewById(R.id.aura_stats)
@@ -35,7 +50,6 @@ class AuraStudioActivity : AppCompatActivity(), AuraEngine.Listener {
         vibeOut = findViewById(R.id.aura_vibe_out)
 
         art.setImageBitmap(AuraArt.snapshot())
-        refreshStats()
 
         findViewById<Button>(R.id.aura_save).setOnClickListener {
             val uri = AuraArt.exportUri(this)
@@ -48,10 +62,10 @@ class AuraStudioActivity : AppCompatActivity(), AuraEngine.Listener {
             startActivity(Intent.createChooser(share, "Share your Aura Canvas"))
         }
         findViewById<Button>(R.id.aura_new).setOnClickListener {
-            AuraArt.reset(); art.setImageBitmap(AuraArt.snapshot()); refreshStats()
+            AuraArt.reset(); art.setImageBitmap(AuraArt.snapshot())
         }
         findViewById<Button>(R.id.aura_refresh).setOnClickListener {
-            art.setImageBitmap(AuraArt.snapshot()); refreshStats()
+            art.setImageBitmap(AuraArt.snapshot())
         }
 
         bindSwitch(R.id.aura_sw_sound, prefs.auraSound) { prefs.auraSound = it }
@@ -75,27 +89,15 @@ class AuraStudioActivity : AppCompatActivity(), AuraEngine.Listener {
         sw.setOnCheckedChangeListener { _, checked -> setter(checked) }
     }
 
-    private fun refreshStats() {
-        val d = engine.dna
-        stats.text = "Mood: ${d.mood.label}   ·   ${d.wpm} WPM   ·   " +
-            "rhythm ${(d.variance * 100).toInt()}%   ·   ${AuraArt.strokeCount()} strokes painted"
-    }
-
-    override fun onDNA(dna: AuraDNA) {
-        orb.dna = dna
-        refreshStats()
-    }
-
     override fun onResume() {
         super.onResume()
-        art.setImageBitmap(AuraArt.snapshot())
-        refreshStats()
+        handler.post(poll)
+        handler.post(artPoll)
     }
 
-    override fun onDestroy() {
-        engine.removeListener(this)
-        engine.release()
-        super.onDestroy()
+    override fun onPause() {
+        handler.removeCallbacksAndMessages(null)
+        super.onPause()
     }
 
     private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
